@@ -121,3 +121,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Test data
+.test_set/*
+./test_set/*
+test_set
+
+# Pre-embeddings
+.crawl-300d-2M.vec
+./crawl-300d-2M.vec
+crawl-300d-2M.vec
+*.vec

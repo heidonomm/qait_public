@@ -40,4 +40,4 @@ def fasttext_export(embedding_file):
 
 
 if __name__ == '__main__':
-    fasttext_export('glove.42B.300d.txt')
+    fasttext_export('glove.6B.300d.txt')

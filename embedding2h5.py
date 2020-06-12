@@ -1,6 +1,7 @@
 # encoding: utf-8
 import io
 import numpy as np
+import yaml
 import h5py
 
 
@@ -22,6 +23,7 @@ def export_data_h5(vocabulary, embedding_matrix, output='embedding.h5'):
 
 
 def fasttext_export(embedding_file):
+
     fin = io.open(embedding_file, 'r', encoding='utf-8',
                   newline='\n', errors='ignore')
     vocabulary = []
@@ -40,4 +42,6 @@ def fasttext_export(embedding_file):
 
 
 if __name__ == '__main__':
-    fasttext_export('glove.6B.300d.txt')
+    with open("config.yaml") as reader:
+        config = yaml.safe_load(reader)
+    fasttext_export(config['pretrained_embeddings']['path'])

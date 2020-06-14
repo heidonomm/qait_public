@@ -228,9 +228,6 @@ def train(data_path):
         # qa reward
         qa_reward_np = reward_helper.get_qa_reward(answers, chosen_answers)
 
-        ## store answers
-        agent.push_answers(answers, chosen_answers)
-
         # sufficient info rewards
         masks = [item[-1] for item in transition_cache]
         masks_np = [generic.to_np(item) for item in masks]

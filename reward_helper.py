@@ -2,7 +2,6 @@ import numpy as np
 from generic import pad_sequences
 from textworld.logic import Proposition
 
-
 # Helper functions to query state/facts.
 def _check_attributes(attributes, entity, facts):
     attributes = set(attributes)

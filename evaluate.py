@@ -10,6 +10,8 @@ import gym
 import textworld
 from textworld.gym import register_games, make_batch
 from query import process_facts
+from sklearn.metrics import precision_recall_fscore_support
+
 
 request_infos = textworld.EnvInfos(description=True,
                                    inventory=True,
@@ -35,6 +37,8 @@ def evaluate(data_path, agent):
         data = json.load(f)
     data = data[agent.question_type]
     data = data["random_map"] if agent.random_map else data["fixed_map"]
+    correct_answers = []
+    predicted_answers = []
 
     print_qa_reward, print_sufficient_info_reward = [], []
     for game_path in tqdm(data):
@@ -115,6 +119,8 @@ def evaluate(data_path, agent):
             chosen_word_indices_np = generic.to_np(chosen_word_indices)
             chosen_answers = [agent.word_vocab[item] for item in chosen_word_indices_np]
 
+            correct_answers.extend(answers)
+            predicted_answers.extend(chosen_answers)
             # rewards
             # qa reward
             qa_reward_np = reward_helper.get_qa_reward(answers, chosen_answers)
@@ -157,6 +163,11 @@ def evaluate(data_path, agent):
             print_qa_reward.append(r_qa)
             print_sufficient_info_reward.append(r_sufficient_info)
         env.close()
+    
+    precision, recall, fscore, _ = precision_recall_fscore_support(correct_answers, predicted_answers, average='micro')
+    print("\n\n---------- From evaluation --------\n")
+    print("precision: %f, recall: %f, f1 score: %f" % (precision, recall, fscore))
+    print("\n\n---------------------------------")
 
     print("===== Eval =====: qa acc: {:2.3f} | correct state: {:2.3f}".format(np.mean(print_qa_reward), np.mean(print_sufficient_info_reward)))
     return np.mean(print_qa_reward), np.mean(print_sufficient_info_reward)

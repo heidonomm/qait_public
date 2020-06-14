@@ -122,13 +122,7 @@ def train(data_path):
 
         if len(env_ids) != agent.batch_size:  # either less than or greater than
             env_ids = np.random.choice(env_ids, agent.batch_size).tolist()
-        # print("\n\n\n")
-        # print(env_ids)
-        # print("\n\n\n")
         env_id = make_batch2(env_ids, parallel=True)
-        # print("\n\n\n")
-        # print(env_ids)
-        # print("\n\n\n")
         
         env = gym.make(env_id)
         env.seed(episode_no)
@@ -233,6 +227,10 @@ def train(data_path):
         # rewards
         # qa reward
         qa_reward_np = reward_helper.get_qa_reward(answers, chosen_answers)
+
+        ## store answers
+        agent.push_answers(answers, chosen_answers)
+
         # sufficient info rewards
         masks = [item[-1] for item in transition_cache]
         masks_np = [generic.to_np(item) for item in masks]
@@ -323,7 +321,9 @@ def train(data_path):
         episode_no += batch_size
 
         time_2 = datetime.datetime.now()
-        print("Episode: {:3d} | time spent: {:s} | interaction loss: {:2.3f} | qa loss: {:2.3f} | rewards: {:2.3f} | qa acc: {:2.3f}/{:2.3f} | correct state: {:2.3f}/{:2.3f}".format(episode_no, str(time_2 - time_1).rsplit(".")[0], running_avg_correct_state_loss.get_avg(), running_avg_qa_loss.get_avg(), print_rewards, r_qa, running_avg_qa_reward.get_avg(), r_sufficient_info, running_avg_sufficient_info_reward.get_avg()))
+        print("Episode: {:3d} | time spent: {:s} | interaction loss: {:2.3f} | qa loss: {:2.3f} | rewards: {:2.3f} | qa acc: {:2.3f}/{:2.3f} | correct state: {:2.3f}/{:2.3f}".format( \
+                    episode_no, str(time_2 - time_1).rsplit(".")[0], running_avg_correct_state_loss.get_avg(), running_avg_qa_loss.get_avg(), print_rewards, \
+                    r_qa, running_avg_qa_reward.get_avg(), r_sufficient_info, running_avg_sufficient_info_reward.get_avg()))
 
         if episode_no < agent.learn_start_from_this_episode:
             continue
@@ -394,6 +394,9 @@ def train(data_path):
             outfile.write(_s + '\n')
             outfile.flush()
 
+    ##evaluate the agents performance at the end of experiment
+    if agent.run_eval:
+        evaluate.evaluate(data_dir, agent)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train an agent.")
@@ -401,6 +404,4 @@ if __name__ == '__main__':
                         default="./",
                         help="where the data (games) are.")
     args = parser.parse_args()
-    print(args)
-    print("\n\n\n\n")
     train(args.data_path)

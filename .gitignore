@@ -132,3 +132,5 @@ test_set
 ./crawl-300d-2M.vec
 crawl-300d-2M.vec
 *.vec
+*.txt
+*.h5

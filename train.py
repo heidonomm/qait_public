@@ -94,7 +94,7 @@ def train(data_path):
     if agent.train_data_size == -1:
         game_queue_size = agent.batch_size * 5
         game_queue = []
-    f = open("qa_accuracies.txt", "a+")
+    f = open("qa_accuracies_avg.txt", "a+")
     episode_no = 0
     if agent.train_data_size == -1:
         # endless mode
@@ -370,7 +370,7 @@ def train(data_path):
             ".")[0], running_avg_correct_state_loss.get_avg(), running_avg_qa_loss.get_avg(), print_rewards, r_qa, running_avg_qa_reward.get_avg(), r_sufficient_info, running_avg_sufficient_info_reward.get_avg()))
 
         # add current qa accuracy to file
-        f.write("{} ".format(r_qa))
+        f.write("{} ".format(running_avg_qa_reward.get_avg()))
 
         if episode_no < agent.learn_start_from_this_episode:
             continue

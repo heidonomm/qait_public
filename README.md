@@ -2,10 +2,13 @@
 --------------------------------------------------------------------------------
 Code for EMNLP 2019 paper "Interactive Language Learning by Question Answering".
 ## UPDATED:
-glone repo and cd into it
-then run setup.sh
+Clone repo and cd into it  
+If conda not installed on your system, uncomment the first block of code in setup.sh  
+Run setup.sh (from zero to training)  
+  
+NB! `conda activate` sometimes does not want to switch to the new venv. If you're afraid that this may cause a mess with your existing setup, do the first commands until `conda activate` by hand.  
 
-## To install dependencies
+## To install dependencies // Outdated
 ```
 sudo apt update
 conda create -p ~/venvs/qait python=3.6

@@ -448,9 +448,11 @@ def train(data_path):
     f.close()
     with open('qa_accuracies.txt') as f:
         accuracies = f.read().split()
+        fig = plt.figure()
         plt.plot(range(1, len(accuracies) + 1), accuracies)
         plt.ylim([0, 1])
         plt.show()
+        fig.savefig('qa_accuracies.png')
 
     # evaluate the agents performance at the end of experiment
     if agent.run_eval:

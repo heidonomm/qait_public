@@ -1,6 +1,9 @@
 # Interactive Language Learning by Question Answering
 --------------------------------------------------------------------------------
 Code for EMNLP 2019 paper "Interactive Language Learning by Question Answering".
+## UPDATED:
+glone repo and cd into it
+then run setup.sh
 
 ## To install dependencies
 ```

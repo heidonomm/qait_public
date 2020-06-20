@@ -3,9 +3,11 @@ import yaml
 import copy
 from collections import namedtuple
 from os.path import join as pjoin
+import sys
 
 import spacy
 import numpy as np
+from transformers import DistilBertTokenizerFast
 
 import torch
 import torch.nn.functional as F
@@ -25,6 +27,11 @@ class Agent:
         with open("config.yaml") as reader:
             self.config = yaml.safe_load(reader)
         print(self.config)
+
+        special_tokens = ["!", '"', "$$", ",", "-=", ".",
+                          "/", ":", ";", "=-", "=", "?", "`", "(", ")", "a-"]
+        self.tokenizer = DistilBertTokenizerFast("vocabularies/word_vocab.txt", bos_token="<s>", eos_token="</s>", unk_token="<unk>",
+                                                 sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
         self.load_config()
 
         self.online_net = DQN(config=self.config,
@@ -35,8 +42,11 @@ class Agent:
                               word_vocab=self.word_vocab,
                               char_vocab=self.char_vocab,
                               answer_type=self.answer_type)
+
+        # set model into training mode (for dropout, normalization etc. layers)
         self.online_net.train()
         self.target_net.train()
+
         self.update_target_net()
         for param in self.target_net.parameters():
             param.requires_grad = False
@@ -55,9 +65,11 @@ class Agent:
         # word vocab
         with open("vocabularies/word_vocab.txt") as f:
             self.word_vocab = f.read().split("\n")
-        self.word2id = {}
-        for i, w in enumerate(self.word_vocab):
-            self.word2id[w] = i
+        # # INITIAL
+        # self.word2id = {}
+        # for i, w in enumerate(self.word_vocab):
+        #     self.word2id[w] = i
+        self.word2id = self.tokenizer.get_vocab()
         # char vocab
         with open("vocabularies/char_vocab.txt") as f:
             self.char_vocab = f.read().split("\n")
@@ -65,6 +77,7 @@ class Agent:
         for i, w in enumerate(self.char_vocab):
             self.char2id[w] = i
 
+        self.BOS_id = self.word2id["<s>"]
         self.EOS_id = self.word2id["</s>"]
         self.train_data_size = self.config['general']['train_data_size']
         self.question_type = self.config['general']['question_type']
@@ -239,16 +252,33 @@ class Agent:
             (batch_size,), dtype="float32")
         self.naozi.reset(batch_size=batch_size)
 
+    # seems like sentence_id_list and input_sentence are the same as no padding actually happens
     def get_agent_inputs(self, string_list):
-        sentence_token_list = [item.split() for item in string_list]
-        sentence_id_list = [_words_to_ids(
-            tokens, self.word2id) for tokens in sentence_token_list]
-        input_sentence_char = list_of_token_list_to_char_input(
-            sentence_token_list, self.char2id)
+        # ## INITIAL:
+        # # split word wise
+        # sentence_token_list = [item.split() for item in string_list]
+        # # tokenize
+        # sentence_id_list = [_words_to_ids(
+        #     tokens, self.word2id) for tokens in sentence_token_list]
+        # input_sentence = pad_sequences(
+        #     sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
+        # input_sentence = to_pt(input_sentence, self.use_cuda)
+        # input_sentence_char = list_of_token_list_to_char_input(
+        #     sentence_token_list, self.char2id)
+        # input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+        arr = list()
+        sentence_id_list = self.tokenizer.encode(string_list)
+        arr.append(sentence_id_list)
+        sentence_id_list = arr
         input_sentence = pad_sequences(
             sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
         input_sentence = to_pt(input_sentence, self.use_cuda)
+
+        sentence_token_list = [item.split() for item in string_list]
+        input_sentence_char = list_of_token_list_to_char_input(
+            sentence_token_list, self.char2id)
         input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+
         return input_sentence, input_sentence_char, sentence_id_list
 
     def get_game_info_at_certain_step(self, obs, infos):

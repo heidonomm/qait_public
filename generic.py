@@ -35,7 +35,8 @@ def _word_to_id(word, word2id):
     except KeyError:
         key = word + "_" + str(len(word2id))
         if key not in missing_words:
-            print("Warning... %s is not in vocab, vocab size is %d..." % (word, len(word2id)))
+            print("Warning... %s is not in vocab, vocab size is %d..." %
+                  (word, len(word2id)))
             missing_words.add(key)
             with open("missing_words.txt", 'a+') as outfile:
                 outfile.write(key + '\n')
@@ -125,11 +126,13 @@ def list_of_token_list_to_char_input(list_of_token_list, char2id):
     max_char_number = max([max_len(item) for item in list_of_token_list])
     if max_char_number < 6:
         max_char_number = 6
-    res = np.zeros((batch_size, max_token_number, max_char_number), dtype='int32')
+    res = np.zeros((batch_size, max_token_number,
+                    max_char_number), dtype='int32')
     for i in range(batch_size):
         for j in range(len(list_of_token_list[i])):
             for k in range(len(list_of_token_list[i][j])):
-                res[i][j][k] = _word_to_id(list_of_token_list[i][j][k], char2id)
+                res[i][j][k] = _word_to_id(
+                    list_of_token_list[i][j][k], char2id)
     return res
 
 

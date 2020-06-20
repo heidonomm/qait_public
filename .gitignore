@@ -134,3 +134,6 @@ crawl-300d-2M.vec
 *.vec
 *.txt
 *.h5
+
+## script for testing stuff
+./script.py

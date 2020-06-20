@@ -4,8 +4,9 @@ import numpy as np
 
 import torch
 import torch.nn.functional as F
+from transformers import DistilBertModel, DistilBertConfig
 
-from layers import Embedding, MergeEmbeddings, EncoderBlock, CQAttention, AnswerPointer, masked_softmax, NoisyLinear
+from layers import Embedding, MergeEmbeddings, EncoderBlock, CQAttention, AnswerPointer, masked_softmax, NoisyLinear, compute_mask
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,9 @@ class DQN(torch.nn.Module):
         self.answer_type = answer_type
         self.read_config()
         self._def_layers()
+        bert_config = DistilBertConfig(
+            vocab_size=self.word_vocab_size, dim=64, n_heads=8)
+        self.bert = DistilBertModel(bert_config)
         # self.print_parameters()
 
     def print_parameters(self):
@@ -154,6 +158,11 @@ class DQN(torch.nn.Module):
     def get_match_representations(self, doc_encodings, doc_mask, q_encodings, q_mask):
         # node encoding: batch x num_node x hid
         # node mask: batch x num_node
+
+        # print("\n\n\n")
+        # print(doc_encodings.shape, "\n")
+        # print(doc_mask.shape, "\n")
+        # print("\n\n\n")
         X = self.context_question_attention(
             doc_encodings, q_encodings, doc_mask, q_mask)
         M0 = self.context_question_attention_resizer(X)
@@ -166,17 +175,20 @@ class DQN(torch.nn.Module):
         return M0
 
     def representation_generator(self, _input_words, _input_chars):
-        embeddings, mask = self.word_embedding(
-            _input_words)  # batch x time x emb
-        char_embeddings, _ = self.char_embedding(
-            _input_chars)  # batch x time x nchar x emb
-        merged_embeddings = self.merge_embeddings(
-            embeddings, char_embeddings, mask)  # batch x time x emb
-        # batch x time x time
-        square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
-        for i in range(self.encoder_layers):
-            encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
-                self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
+        # ## INITIAL:
+        # embeddings, mask = self.word_embedding(
+        #     _input_words)  # batch x time x emb
+        # char_embeddings, _ = self.char_embedding(
+        #     _input_chars)  # batch x time x nchar x emb
+        # merged_embeddings = self.merge_embeddings(
+        #     embeddings, char_embeddings, mask)  # batch x time x emb
+        # # batch x time x time
+        # square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
+        # for i in range(self.encmoder_layers):
+        #     encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
+        #         self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
+        encoding_sequence = self.bert(_input_words)[0]
+        mask = compute_mask(_input_words)
 
         return encoding_sequence, mask
 

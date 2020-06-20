@@ -281,7 +281,7 @@ class Agent:
             input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
 
             return input_sentence, input_sentence_char, sentence_id_list
-        except ValueError:
+        except TypeError:
             print(string_list)
             sys.exit()
 

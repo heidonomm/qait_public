@@ -266,20 +266,24 @@ class Agent:
         # input_sentence_char = list_of_token_list_to_char_input(
         #     sentence_token_list, self.char2id)
         # input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
-        arr = list()
-        sentence_id_list = self.tokenizer.encode(string_list)
-        arr.append(sentence_id_list)
-        sentence_id_list = arr
-        input_sentence = pad_sequences(
-            sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
-        input_sentence = to_pt(input_sentence, self.use_cuda)
+        try:
+            arr = list()
+            sentence_id_list = self.tokenizer.encode(string_list)
+            arr.append(sentence_id_list)
+            sentence_id_list = arr
+            input_sentence = pad_sequences(
+                sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
+            input_sentence = to_pt(input_sentence, self.use_cuda)
 
-        sentence_token_list = [item.split() for item in string_list]
-        input_sentence_char = list_of_token_list_to_char_input(
-            sentence_token_list, self.char2id)
-        input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+            sentence_token_list = [item.split() for item in string_list]
+            input_sentence_char = list_of_token_list_to_char_input(
+                sentence_token_list, self.char2id)
+            input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
 
-        return input_sentence, input_sentence_char, sentence_id_list
+            return input_sentence, input_sentence_char, sentence_id_list
+        except ValueError:
+            print(string_list)
+            sys.exit()
 
     def get_game_info_at_certain_step(self, obs, infos):
         """

@@ -1,3 +1,13 @@
+from generic import list_of_token_list_to_char_input
+from generic import max_len, ez_gather_dim_1, ObservationPool
+from generic import to_np, to_pt, preproc, _words_to_ids, pad_sequences
+from layers import compute_mask, NegativeLogLoss
+from model import DQN
+import qa_memory
+import command_generation_memory
+
+import torch.nn.functional as F
+import torch
 import random
 import yaml
 import copy
@@ -8,17 +18,8 @@ import sys
 import spacy
 import numpy as np
 from transformers import DistilBertTokenizerFast
-
-import torch
-import torch.nn.functional as F
-
-import command_generation_memory
-import qa_memory
-from model import DQN
-from layers import compute_mask, NegativeLogLoss
-from generic import to_np, to_pt, preproc, _words_to_ids, pad_sequences
-from generic import max_len, ez_gather_dim_1, ObservationPool
-from generic import list_of_token_list_to_char_input
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 class Agent:
@@ -266,24 +267,19 @@ class Agent:
         # input_sentence_char = list_of_token_list_to_char_input(
         #     sentence_token_list, self.char2id)
         # input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
-        try:
-            arr = list()
-            sentence_id_list = self.tokenizer.encode(string_list)
-            arr.append(sentence_id_list)
-            sentence_id_list = arr
-            input_sentence = pad_sequences(
-                sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
-            input_sentence = to_pt(input_sentence, self.use_cuda)
 
-            sentence_token_list = [item.split() for item in string_list]
-            input_sentence_char = list_of_token_list_to_char_input(
-                sentence_token_list, self.char2id)
-            input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+        sentence_id_list = [self.tokenizer.encode(
+            sentence) for sentence in string_list]
+        input_sentence = pad_sequences(
+            sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
+        input_sentence = to_pt(input_sentence, self.use_cuda)
 
-            return input_sentence, input_sentence_char, sentence_id_list
-        except TypeError:
-            print(string_list)
-            sys.exit()
+        sentence_token_list = [item.split() for item in string_list]
+        input_sentence_char = list_of_token_list_to_char_input(
+            sentence_token_list, self.char2id)
+        input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+
+        return input_sentence, input_sentence_char, sentence_id_list
 
     def get_game_info_at_certain_step(self, obs, infos):
         """

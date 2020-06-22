@@ -255,26 +255,24 @@ class Agent:
 
     # seems like sentence_id_list and input_sentence are the same as no padding actually happens
     def get_agent_inputs(self, string_list):
-        # ## INITIAL:
-        # # split word wise
-        # sentence_token_list = [item.split() for item in string_list]
-        # # tokenize
-        # sentence_id_list = [_words_to_ids(
-        #     tokens, self.word2id) for tokens in sentence_token_list]
-        # input_sentence = pad_sequences(
-        #     sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
-        # input_sentence = to_pt(input_sentence, self.use_cuda)
-        # input_sentence_char = list_of_token_list_to_char_input(
-        #     sentence_token_list, self.char2id)
-        # input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
-
-        sentence_id_list = [self.tokenizer.encode(
-            sentence) for sentence in string_list]
+        # INITIAL:
+        # split word wise
+        sentence_token_list = [item.split() for item in string_list]
+        # tokenize
+        sentence_id_list = [_words_to_ids(
+            tokens, self.word2id) for tokens in sentence_token_list]
         input_sentence = pad_sequences(
             sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
         input_sentence = to_pt(input_sentence, self.use_cuda)
 
-        sentence_token_list = [item.split() for item in string_list]
+        # sentence_token_list = [self.tokenizer.tokenize(
+        #     item) for item in string_list]
+        # sentence_id_list = [self.tokenizer.encode(
+        #     sentence, add_special_tokens=False) for sentence in string_list]
+        # input_sentence = pad_sequences(
+        #     sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
+        # input_sentence = to_pt(input_sentence, self.use_cuda)
+
         input_sentence_char = list_of_token_list_to_char_input(
             sentence_token_list, self.char2id)
         input_sentence_char = to_pt(input_sentence_char, self.use_cuda)

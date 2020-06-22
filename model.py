@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from transformers import DistilBertModel, DistilBertConfig
 
-from layers import Embedding, MergeEmbeddings, EncoderBlock, CQAttention, AnswerPointer, masked_softmax, NoisyLinear, compute_mask
+from layers import Embedding, MergeEmbeddings, DistilBertEncoder, EncoderBlock, CQAttention, AnswerPointer, masked_softmax, NoisyLinear, compute_mask
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,7 @@ class DQN(torch.nn.Module):
         self.answer_type = answer_type
         self.read_config()
         self._def_layers()
-        bert_config = DistilBertConfig(
-            vocab_size=self.word_vocab_size, dim=64, n_heads=8)
-        self.bert = DistilBertModel(bert_config)
+
         # self.print_parameters()
 
     def print_parameters(self):
@@ -78,7 +76,6 @@ class DQN(torch.nn.Module):
 
     def _def_layers(self):
 
-        # word embeddings
         if self.use_pretrained_embedding:
             self.word_embedding = Embedding(embedding_size=self.word_embedding_size,
                                             vocab_size=self.word_vocab_size,
@@ -103,8 +100,11 @@ class DQN(torch.nn.Module):
         self.merge_embeddings = MergeEmbeddings(block_hidden_dim=self.block_hidden_dim, word_emb_dim=self.word_embedding_size,
                                                 char_emb_dim=self.char_embedding_size, dropout=self.embedding_dropout)
 
-        self.encoders = torch.nn.ModuleList([EncoderBlock(conv_num=self.encoder_conv_num, ch_num=self.block_hidden_dim, k=7,
-                                                          block_hidden_dim=self.block_hidden_dim, n_head=self.n_heads, dropout=self.block_dropout) for _ in range(self.encoder_layers)])
+        self.bert_encoder = DistilBertEncoder(
+            word_vocab_size=self.word_vocab_size, encoder_dim=64, n_heads=8)
+
+        # self.encoders = torch.nn.ModuleList([EncoderBlock(conv_num=self.encoder_conv_num, ch_num=self.block_hidden_dim, k=7,
+        #                                                   block_hidden_dim=self.block_hidden_dim, n_head=self.n_heads, dropout=self.block_dropout) for _ in range(self.encoder_layers)])
 
         self.context_question_attention = CQAttention(
             block_hidden_dim=self.block_hidden_dim, dropout=self.attention_dropout)
@@ -175,20 +175,25 @@ class DQN(torch.nn.Module):
         return M0
 
     def representation_generator(self, _input_words, _input_chars):
-        # ## INITIAL:
-        # embeddings, mask = self.word_embedding(
-        #     _input_words)  # batch x time x emb
-        # char_embeddings, _ = self.char_embedding(
-        #     _input_chars)  # batch x time x nchar x emb
-        # merged_embeddings = self.merge_embeddings(
-        #     embeddings, char_embeddings, mask)  # batch x time x emb
-        # # batch x time x time
-        # square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
+        # INITIAL:
+        embeddings, mask = self.word_embedding(
+            _input_words)  # batch x time x emb
+        char_embeddings, _ = self.char_embedding(
+            _input_chars)  # batch x time x nchar x emb
+        merged_embeddings = self.merge_embeddings(
+            embeddings, char_embeddings, mask)  # batch x time x emb
+        # batch x time x time
+        square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
+        encoding_sequence = self.bert_encoder(
+            input_embeddings=merged_embeddings, mask=mask)[0]
+
         # for i in range(self.encmoder_layers):
         #     encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
         #         self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
-        encoding_sequence = self.bert(_input_words)[0]
-        mask = compute_mask(_input_words)
+
+        # without imputting embeddings
+        # encoding_sequence = self.bert_encoder(_input_words)[0]
+        # mask = compute_mask(_input_words)
 
         return encoding_sequence, mask
 

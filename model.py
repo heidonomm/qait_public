@@ -184,11 +184,11 @@ class DQN(torch.nn.Module):
         #     embeddings, char_embeddings, mask)  # batch x time x emb
         # # batch x time x time
         # square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
-        # for i in range(self.encmoder_layers):
+        # for i in range(self.encoder_layers):
         #     encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
         #         self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
-        encoding_sequence = self.bert(_input_words)[0]
         mask = compute_mask(_input_words)
+        encoding_sequence = self.bert(_input_words)[0]
 
         return encoding_sequence, mask
 

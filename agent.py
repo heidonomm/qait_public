@@ -31,8 +31,10 @@ class Agent:
 
         special_tokens = ["!", '"', "$$", ",", "-=", ".",
                           "/", ":", ";", "=-", "=", "?", "`", "(", ")", "a-"]
-        self.tokenizer = DistilBertTokenizerFast("vocabularies/word_vocab.txt", bos_token="<s>", eos_token="</s>", unk_token="<unk>",
-                                                 sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
+        # self.tokenizer = DistilBertTokenizerFast("vocabularies/word_vocab.txt", bos_token="<s>", eos_token="</s>", unk_token="<unk>",
+        #                                          sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
+        self.tokenizer = DistilBertTokenizerFast.from_pretrained(
+            'distilbert-base-uncased')
         self.load_config()
 
         self.online_net = DQN(config=self.config,
@@ -268,13 +270,14 @@ class Agent:
         #     sentence_token_list, self.char2id)
         # input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
 
+        sentence_token_list = [self.tokenizer.tokenize(
+            item) for item in string_list]
         sentence_id_list = [self.tokenizer.encode(
-            sentence) for sentence in string_list]
+            sentence, add_special_tokens=False) for sentence in string_list]
         input_sentence = pad_sequences(
             sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
         input_sentence = to_pt(input_sentence, self.use_cuda)
 
-        sentence_token_list = [item.split() for item in string_list]
         input_sentence_char = list_of_token_list_to_char_input(
             sentence_token_list, self.char2id)
         input_sentence_char = to_pt(input_sentence_char, self.use_cuda)

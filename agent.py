@@ -27,22 +27,24 @@ class Agent:
         self.mode = "train"
         with open("config.yaml") as reader:
             self.config = yaml.safe_load(reader)
-        print(self.config)
 
-        special_tokens = ["!", '"', "$$", ",", "-=", ".",
-                          "/", ":", ";", "=-", "=", "?", "`", "(", ")", "a-"]
+        # special_tokens = ["!", '"', "$$", ",", "-=", ".",
+        #                   "/", ":", ";", "=-", "=", "?", "`", "(", ")", "a-"]
         # self.tokenizer = DistilBertTokenizerFast("vocabularies/word_vocab.txt", bos_token="<s>", eos_token="</s>", unk_token="<unk>",
         #                                          sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
         self.tokenizer = DistilBertTokenizerFast.from_pretrained(
             'distilbert-base-uncased')
+        self.tokenizer.add_tokens(['</s>'])
         self.load_config()
 
         self.online_net = DQN(config=self.config,
                               word_vocab=self.word_vocab,
+                              word_vocab_len=len(self.tokenizer),
                               char_vocab=self.char_vocab,
                               answer_type=self.answer_type)
         self.target_net = DQN(config=self.config,
                               word_vocab=self.word_vocab,
+                              word_vocab_len=len(self.tokenizer),
                               char_vocab=self.char_vocab,
                               answer_type=self.answer_type)
 
@@ -66,13 +68,14 @@ class Agent:
 
     def load_config(self):
         # word vocab
-        with open("vocabularies/word_vocab.txt") as f:
-            self.word_vocab = f.read().split("\n")
+        # with open("vocabularies/word_vocab.txt") as f:
+        #     self.word_vocab = f.read().split("\n")
         # # INITIAL
         # self.word2id = {}
         # for i, w in enumerate(self.word_vocab):
         #     self.word2id[w] = i
         self.word2id = self.tokenizer.get_vocab()
+        self.word_vocab = list(self.word2id.keys())
         # char vocab
         with open("vocabularies/char_vocab.txt") as f:
             self.char_vocab = f.read().split("\n")
@@ -80,7 +83,7 @@ class Agent:
         for i, w in enumerate(self.char_vocab):
             self.char2id[w] = i
 
-        self.BOS_id = self.word2id["<s>"]
+        # self.BOS_id = self.word2id["<s>"]
         self.EOS_id = self.word2id["</s>"]
         self.train_data_size = self.config['general']['train_data_size']
         self.question_type = self.config['general']['question_type']
@@ -443,15 +446,18 @@ class Agent:
             adj: Index of the guessing adjective in vocabulary
             noun: Index of the guessing noun in vocabulary
         """
+        current_verb = self.tokenizer.decode([verb])
+        current_adj = self.tokenizer.decode([adj])
+        current_noun = self.tokenizer.decode([noun])
         # turns 3 indices into actual command strings
-        if self.word_vocab[verb] in self.single_word_verbs:
-            return self.word_vocab[verb]
-        if self.word_vocab[verb] in self.two_word_verbs:
-            return " ".join([self.word_vocab[verb], self.word_vocab[noun]])
+        if current_verb in self.single_word_verbs:
+            return current_verb
+        if current_verb in self.two_word_verbs:
+            return " ".join([current_verb, current_noun])
         if adj == self.EOS_id:
-            return " ".join([self.word_vocab[verb], self.word_vocab[noun]])
+            return " ".join([current_verb, current_noun])
         else:
-            return " ".join([self.word_vocab[verb], self.word_vocab[adj], self.word_vocab[noun]])
+            return " ".join([current_verb, current_adj, current_noun])
 
     def act_random(self, obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words):
         with torch.no_grad():

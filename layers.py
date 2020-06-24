@@ -4,6 +4,8 @@ import h5py
 import numpy as np
 import torch.nn.functional as F
 
+from transformers import DistilBertModel
+
 
 def compute_mask(x):
     mask = torch.ne(x, 0).float()
@@ -206,6 +208,18 @@ class Embedding(torch.nn.Module):
             embeddings, p=self.dropout_rate, training=self.training)
         mask = self.compute_mask(x)  # batch x time
         return embeddings, mask
+
+
+class DistilBertEncoder(torch.nn.Module):
+    def __init__(self, vocab_size):
+        super(DistilBertEncoder, self).__init__()
+        self.bert = DistilBertModel.from_pretrained('distilbert-base-uncased')
+        self.bert.resize_token_embeddings(vocab_size)
+        for param in self.bert.parameters():
+            param.requires_grad = False
+
+    def forward(self, x):
+        return self.bert(x)
 
 
 class NoisyLinear(torch.nn.Module):

@@ -78,7 +78,7 @@ model:
   aggregation_layers: 3
   encoder_conv_num: 2
   aggregation_conv_num: 2
-  block_hidden_dim: 64
+  block_hidden_dim: 768
   n_heads: 1
   attention_dropout: 0.
   block_dropout: 0.

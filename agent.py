@@ -75,7 +75,9 @@ class Agent:
         # for i, w in enumerate(self.word_vocab):
         #     self.word2id[w] = i
         self.word2id = self.tokenizer.get_vocab()
-        self.word_vocab = list(self.word2id.keys())
+        self.word_vocab = []
+        with open("vocabularies/bert_vocab.txt") as f:
+            self.word_vocab = f.read().split("\n")
         # char vocab
         with open("vocabularies/char_vocab.txt") as f:
             self.char_vocab = f.read().split("\n")

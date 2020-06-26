@@ -34,7 +34,7 @@ class Agent:
         #                                          sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
         self.tokenizer = DistilBertTokenizerFast.from_pretrained(
             'distilbert-base-uncased')
-        self.tokenizer.add_tokens(['</s>'])
+        self.tokenizer.add_tokens(['</s>', '<|>'])
         self.load_config()
 
         self.online_net = DQN(config=self.config,

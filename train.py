@@ -20,7 +20,6 @@ import reward_helper
 import game_generator
 import evaluate
 from query import process_facts
-import matplotlib.pyplot as plt
 
 request_infos = textworld.EnvInfos(description=True,
                                    inventory=True,

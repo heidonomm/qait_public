@@ -215,11 +215,12 @@ class DistilBertEncoder(torch.nn.Module):
         super(DistilBertEncoder, self).__init__()
         self.bert = DistilBertModel.from_pretrained('distilbert-base-uncased')
         self.bert.resize_token_embeddings(vocab_size)
+
         for param in self.bert.parameters():
             param.requires_grad = False
 
-    def forward(self, x):
-        return self.bert(x)
+    def forward(self, x, mask):
+        return self.bert(x, attention_mask=mask)[0]
 
 
 class NoisyLinear(torch.nn.Module):

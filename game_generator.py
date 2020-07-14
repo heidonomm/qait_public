@@ -6,13 +6,13 @@ import time
 import multiprocessing as mp
 from os.path import join as pjoin
 
-with open("vocabularies/fake_words.txt") as f:
+with open("vocabularies/fake_words.txt", encoding="utf-8") as f:
     FAKE_WORDS = f.read().lower().split("\n")
 FAKE_WORDS = set(FAKE_WORDS)
 
 
 # entities
-with open("vocabularies/entities.txt") as f:
+with open("vocabularies/entities.txt", encoding="utf-8") as f:
     ALL_ENTITIES = f.read().lower().split("\n")
 ALL_ENTITIES = set(ALL_ENTITIES)
 

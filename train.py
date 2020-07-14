@@ -93,7 +93,7 @@ def train(data_path):
     if agent.train_data_size == -1:
         game_queue_size = agent.batch_size * 5
         game_queue = []
-    f = open("accuracies_avg_pretrained10games.txt", "a+")
+    f = open("accuracies_avg_pretrained10games.txt", "a+", encoding="utf-8")
     episode_no = 0
     if agent.train_data_size == -1:
         # endless mode
@@ -440,7 +440,7 @@ def train(data_path):
                          "qa": running_avg_qa_reward.get_avg(),
                          "eval sufficient info": eval_sufficient_info_reward,
                          "eval qa": eval_qa_reward})
-        with open(output_dir + "/" + json_file_name + '.json', 'a+') as outfile:
+        with open(output_dir + "/" + json_file_name + '.json', 'a+', encoding="utf-8") as outfile:
             outfile.write(_s + '\n')
             outfile.flush()
 

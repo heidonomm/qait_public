@@ -133,6 +133,7 @@ test_set
 crawl-300d-2M.vec
 *.vec
 *.h5
+.vscode/
 
 missing_words.txt
 model_overview.txt
@@ -143,4 +144,4 @@ glove.6B.300d.txt
 *.pt
 
 ## script for testing stuff
-./script.py
+script.py

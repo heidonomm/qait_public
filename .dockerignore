@@ -1,0 +1,7 @@
+.gitattributes
+.gitignore
+crawl-300d-2M.vec
+glove.6B.300d.txt.h5
+__pycache__
+.vscode
+

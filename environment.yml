@@ -1,0 +1,25 @@
+name: qait
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - cudatoolkit=9.2=0
+  - python=3.6.10=h7579374_2
+  - pytorch=1.5.0=py3.6_cuda9.2.148_cudnn7.6.3_0
+  - torchvision=0.6.0=py36_cu92
+  - wheel=0.34.2=py36_0
+  - pip:
+    - textworld==1.1.1
+    - spacy==2.2.4
+    - gym==0.10.11
+    - tqdm==4.46.1
+    - h5py==2.10.0
+    - numpy==1.16.4
+    - transformers==3.0.2
+    - networkx==2.4
+    - torch==1.5.0
+    - PyYAML==5.3.1
+    - scikit_learn==0.23.1
+prefix: /qait
+

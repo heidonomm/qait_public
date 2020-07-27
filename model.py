@@ -4,8 +4,9 @@ import numpy as np
 
 import torch
 import torch.nn.functional as F
+from transformers import DistilBertModel, DistilBertConfig
 
-from layers import Embedding, MergeEmbeddings, EncoderBlock, CQAttention, AnswerPointer, masked_softmax, NoisyLinear
+from layers import Embedding, MergeEmbeddings, EncoderBlock, DistilBertEncoder, CQAttention, AnswerPointer, masked_softmax, NoisyLinear, compute_mask
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +14,15 @@ logger = logging.getLogger(__name__)
 class DQN(torch.nn.Module):
     model_name = 'dqn'
 
-    def __init__(self, config, word_vocab, char_vocab, answer_type="pointing", generate_length=3):
+    def __init__(self, config, word_vocab_len, word_vocab=None, char_vocab=None, answer_type="pointing", generate_length=3):
         super(DQN, self).__init__()
         self.config = config
-        self.word_vocab = word_vocab
-        self.word_vocab_size = len(word_vocab)
-        self.char_vocab = char_vocab
-        self.char_vocab_size = len(char_vocab)
+        # self.word_vocab = word_vocab
+        # self.word_vocab_size = len(word_vocab)
+        # Currently hardcoded for testing purposes
+        self.word_vocab_size = word_vocab_len
+        # self.char_vocab = char_vocab
+        # self.char_vocab_size = len(char_vocab)
         self.generate_length = generate_length
         self.answer_type = answer_type
         self.read_config()
@@ -74,39 +77,40 @@ class DQN(torch.nn.Module):
 
     def _def_layers(self):
 
-        # word embeddings
-        if self.use_pretrained_embedding:
-            self.word_embedding = Embedding(embedding_size=self.word_embedding_size,
-                                            vocab_size=self.word_vocab_size,
-                                            id2word=self.word_vocab,
-                                            dropout_rate=self.embedding_dropout,
-                                            load_pretrained=True,
-                                            trainable=self.word_embedding_trainable,
-                                            embedding_oov_init="random",
-                                            pretrained_embedding_path=self.pretrained_embedding_path)
-        else:
-            self.word_embedding = Embedding(embedding_size=self.word_embedding_size,
-                                            vocab_size=self.word_vocab_size,
-                                            trainable=self.word_embedding_trainable,
-                                            dropout_rate=self.embedding_dropout)
+        # # word embeddings
+        # if self.use_pretrained_embedding:
+        #     self.word_embedding = Embedding(embedding_size=self.word_embedding_size,
+        #                                     vocab_size=self.word_vocab_size,
+        #                                     id2word=self.word_vocab,
+        #                                     dropout_rate=self.embedding_dropout,
+        #                                     load_pretrained=True,
+        #                                     trainable=self.word_embedding_trainable,
+        #                                     embedding_oov_init="random",
+        #                                     pretrained_embedding_path=self.pretrained_embedding_path)
+        # else:
+        #     self.word_embedding = Embedding(embedding_size=self.word_embedding_size,
+        #                                     vocab_size=self.word_vocab_size,
+        #                                     trainable=self.word_embedding_trainable,
+        #                                     dropout_rate=self.embedding_dropout)
 
-        # char embeddings
-        self.char_embedding = Embedding(embedding_size=self.char_embedding_size,
-                                        vocab_size=self.char_vocab_size,
-                                        trainable=self.char_embedding_trainable,
-                                        dropout_rate=self.embedding_dropout)
+        # # char embeddings
+        # self.char_embedding = Embedding(embedding_size=self.char_embedding_size,
+        #                                 vocab_size=self.char_vocab_size,
+        #                                 trainable=self.char_embedding_trainable,
+        #                                 dropout_rate=self.embedding_dropout)
 
-        self.merge_embeddings = MergeEmbeddings(block_hidden_dim=self.block_hidden_dim, word_emb_dim=self.word_embedding_size,
-                                                char_emb_dim=self.char_embedding_size, dropout=self.embedding_dropout)
+        # self.merge_embeddings = MergeEmbeddings(block_hidden_dim=self.block_hidden_dim, word_emb_dim=self.word_embedding_size,
+        #                                         char_emb_dim=self.char_embedding_size, dropout=self.embedding_dropout)
 
-        self.encoders = torch.nn.ModuleList([EncoderBlock(conv_num=self.encoder_conv_num, ch_num=self.block_hidden_dim, k=7,
-                                                          block_hidden_dim=self.block_hidden_dim, n_head=self.n_heads, dropout=self.block_dropout) for _ in range(self.encoder_layers)])
+        # self.encoders = torch.nn.ModuleList([EncoderBlock(conv_num=self.encoder_conv_num, ch_num=self.block_hidden_dim, k=7,
+        #                                                   block_hidden_dim=self.block_hidden_dim, n_head=self.n_heads, dropout=self.block_dropout) for _ in range(self.encoder_layers)])
+        self.bert_encoder = DistilBertEncoder(vocab_size=self.word_vocab_size)
 
         self.context_question_attention = CQAttention(
-            block_hidden_dim=self.block_hidden_dim, dropout=self.attention_dropout)
+            block_hidden_dim=768, dropout=self.attention_dropout)
 
         self.context_question_attention_resizer = torch.nn.Linear(
-            self.block_hidden_dim * 4, self.block_hidden_dim)
+            768 * 4, 64)
 
         self.aggregators = torch.nn.ModuleList([EncoderBlock(conv_num=self.aggregation_conv_num, ch_num=self.block_hidden_dim, k=5, block_hidden_dim=self.block_hidden_dim,
                                                              n_head=self.n_heads, dropout=self.block_dropout) for _ in range(self.aggregation_layers)])
@@ -154,6 +158,11 @@ class DQN(torch.nn.Module):
     def get_match_representations(self, doc_encodings, doc_mask, q_encodings, q_mask):
         # node encoding: batch x num_node x hid
         # node mask: batch x num_node
+
+        # print("\n\n\n")
+        # print(doc_encodings.shape, "\n")
+        # print(doc_mask.shape, "\n")
+        # print("\n\n\n")
         X = self.context_question_attention(
             doc_encodings, q_encodings, doc_mask, q_mask)
         M0 = self.context_question_attention_resizer(X)
@@ -166,17 +175,20 @@ class DQN(torch.nn.Module):
         return M0
 
     def representation_generator(self, _input_words, _input_chars):
-        embeddings, mask = self.word_embedding(
-            _input_words)  # batch x time x emb
-        char_embeddings, _ = self.char_embedding(
-            _input_chars)  # batch x time x nchar x emb
-        merged_embeddings = self.merge_embeddings(
-            embeddings, char_embeddings, mask)  # batch x time x emb
-        # batch x time x time
-        square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
-        for i in range(self.encoder_layers):
-            encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
-                self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
+        # ## INITIAL:
+        # embeddings, mask = self.word_embedding(
+        #     _input_words)  # batch x time x emb
+        # char_embeddings, _ = self.char_embedding(
+        #     _input_chars)  # batch x time x nchar x emb
+        # merged_embeddings = self.merge_embeddings(
+        #     embeddings, char_embeddings, mask)  # batch x time x emb
+        # # batch x time x time
+        # square_mask = torch.bmm(mask.unsqueeze(-1), mask.unsqueeze(1))
+        # for i in range(self.encoder_layers):
+        #     encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
+        #         self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
+        mask = compute_mask(_input_words)
+        encoding_sequence = self.bert_encoder(_input_words, mask)
 
         return encoding_sequence, mask
 

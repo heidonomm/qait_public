@@ -132,5 +132,16 @@ test_set
 ./crawl-300d-2M.vec
 crawl-300d-2M.vec
 *.vec
-*.txt
 *.h5
+.vscode/
+
+missing_words.txt
+model_overview.txt
+new_model.txt
+distilbert_with_64_hidden.txt
+glove.6B.300d.txt
+
+*.pt
+
+## script for testing stuff
+script.py

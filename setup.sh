@@ -16,9 +16,9 @@ pip install https://github.com/Microsoft/TextWorld/archive/rebased-interactive-q
 pip install -U spacy
 python -m spacy download en
 pip install gym==0.10.11
-pip install tqdm h5py pyyaml visdom scikit-learn matplotlib
+pip install tqdm h5py pyyaml visdom scikit-learn matplotlib ipykernel transformers
 conda install pytorch torchvision cudatoolkit=9.2 -c pytorch
-
+pip install torch==1.5.1+cu92 torchvision==0.6.1+cu92 -f https://download.pytorch.org/whl/torch_stable.html
 
 ## get the testset from ms
 wget https://aka.ms/qait-testset

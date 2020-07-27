@@ -20,7 +20,6 @@ import reward_helper
 import game_generator
 import evaluate
 from query import process_facts
-import matplotlib.pyplot as plt
 
 request_infos = textworld.EnvInfos(description=True,
                                    inventory=True,
@@ -94,7 +93,7 @@ def train(data_path):
     if agent.train_data_size == -1:
         game_queue_size = agent.batch_size * 5
         game_queue = []
-    f = open("qa_accuracies_avg.txt", "a+")
+    f = open("accuracies_avg_pretrained10games.txt", "a+", encoding="utf-8")
     episode_no = 0
     if agent.train_data_size == -1:
         # endless mode
@@ -441,18 +440,11 @@ def train(data_path):
                          "qa": running_avg_qa_reward.get_avg(),
                          "eval sufficient info": eval_sufficient_info_reward,
                          "eval qa": eval_qa_reward})
-        with open(output_dir + "/" + json_file_name + '.json', 'a+') as outfile:
+        with open(output_dir + "/" + json_file_name + '.json', 'a+', encoding="utf-8") as outfile:
             outfile.write(_s + '\n')
             outfile.flush()
 
     f.close()
-    with open('qa_accuracies.txt') as f:
-        accuracies = f.read().split()
-        fig = plt.figure()
-        plt.plot(range(1, len(accuracies) + 1), accuracies)
-        plt.ylim([0, 1])
-        plt.show()
-        fig.savefig('qa_accuracies.png')
 
     # evaluate the agents performance at the end of experiment
     if agent.run_eval:

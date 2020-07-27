@@ -1,22 +1,25 @@
+from generic import list_of_token_list_to_char_input
+from generic import max_len, ez_gather_dim_1, ObservationPool
+from generic import to_np, to_pt, preproc, _words_to_ids, pad_sequences
+from layers import compute_mask, NegativeLogLoss
+from model import DQN
+import qa_memory
+import command_generation_memory
+
+import torch.nn.functional as F
+import torch
 import random
 import yaml
 import copy
 from collections import namedtuple
 from os.path import join as pjoin
+import sys
 
 import spacy
 import numpy as np
-
-import torch
-import torch.nn.functional as F
-
-import command_generation_memory
-import qa_memory
-from model import DQN
-from layers import compute_mask, NegativeLogLoss
-from generic import to_np, to_pt, preproc, _words_to_ids, pad_sequences
-from generic import max_len, ez_gather_dim_1, ObservationPool
-from generic import list_of_token_list_to_char_input
+from transformers import DistilBertTokenizerFast
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 class Agent:
@@ -24,19 +27,31 @@ class Agent:
         self.mode = "train"
         with open("config.yaml") as reader:
             self.config = yaml.safe_load(reader)
-        print(self.config)
+
+        # special_tokens = ["!", '"', "$$", ",", "-=", ".",
+        #                   "/", ":", ";", "=-", "=", "?", "`", "(", ")", "a-"]
+        # self.tokenizer = DistilBertTokenizerFast("vocabularies/word_vocab.txt", bos_token="<s>", eos_token="</s>", unk_token="<unk>",
+        #                                          sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
+        self.tokenizer = DistilBertTokenizerFast.from_pretrained(
+            'distilbert-base-uncased')
+        self.tokenizer.add_tokens(['</s>', '<|>'])
         self.load_config()
 
         self.online_net = DQN(config=self.config,
                               word_vocab=self.word_vocab,
+                              word_vocab_len=len(self.tokenizer),
                               char_vocab=self.char_vocab,
                               answer_type=self.answer_type)
         self.target_net = DQN(config=self.config,
                               word_vocab=self.word_vocab,
+                              word_vocab_len=len(self.tokenizer),
                               char_vocab=self.char_vocab,
                               answer_type=self.answer_type)
+
+        # set model into training mode (for dropout, normalization etc. layers)
         self.online_net.train()
         self.target_net.train()
+
         self.update_target_net()
         for param in self.target_net.parameters():
             param.requires_grad = False
@@ -53,18 +68,24 @@ class Agent:
 
     def load_config(self):
         # word vocab
-        with open("vocabularies/word_vocab.txt") as f:
+        # with open("vocabularies/word_vocab.txt") as f:
+        #     self.word_vocab = f.read().split("\n")
+        # # INITIAL
+        # self.word2id = {}
+        # for i, w in enumerate(self.word_vocab):
+        #     self.word2id[w] = i
+        self.word2id = self.tokenizer.get_vocab()
+        self.word_vocab = []
+        with open("vocabularies/bert_vocab.txt", encoding="utf-8") as f:
             self.word_vocab = f.read().split("\n")
-        self.word2id = {}
-        for i, w in enumerate(self.word_vocab):
-            self.word2id[w] = i
         # char vocab
-        with open("vocabularies/char_vocab.txt") as f:
+        with open("vocabularies/char_vocab.txt", encoding="utf-8") as f:
             self.char_vocab = f.read().split("\n")
         self.char2id = {}
         for i, w in enumerate(self.char_vocab):
             self.char2id[w] = i
 
+        # self.BOS_id = self.word2id["<s>"]
         self.EOS_id = self.word2id["</s>"]
         self.train_data_size = self.config['general']['train_data_size']
         self.question_type = self.config['general']['question_type']
@@ -239,16 +260,33 @@ class Agent:
             (batch_size,), dtype="float32")
         self.naozi.reset(batch_size=batch_size)
 
+    # seems like sentence_id_list and input_sentence are the same as no padding actually happens
     def get_agent_inputs(self, string_list):
-        sentence_token_list = [item.split() for item in string_list]
-        sentence_id_list = [_words_to_ids(
-            tokens, self.word2id) for tokens in sentence_token_list]
-        input_sentence_char = list_of_token_list_to_char_input(
-            sentence_token_list, self.char2id)
+        # ## INITIAL:
+        # # split word wise
+        # sentence_token_list = [item.split() for item in string_list]
+        # # tokenize
+        # sentence_id_list = [_words_to_ids(
+        #     tokens, self.word2id) for tokens in sentence_token_list]
+        # input_sentence = pad_sequences(
+        #     sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
+        # input_sentence = to_pt(input_sentence, self.use_cuda)
+        # input_sentence_char = list_of_token_list_to_char_input(
+        #     sentence_token_list, self.char2id)
+        # input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+
+        sentence_token_list = [self.tokenizer.tokenize(
+            item) for item in string_list]
+        sentence_id_list = [self.tokenizer.encode(
+            sentence, add_special_tokens=False) for sentence in string_list]
         input_sentence = pad_sequences(
             sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
         input_sentence = to_pt(input_sentence, self.use_cuda)
+
+        input_sentence_char = list_of_token_list_to_char_input(
+            sentence_token_list, self.char2id)
         input_sentence_char = to_pt(input_sentence_char, self.use_cuda)
+
         return input_sentence, input_sentence_char, sentence_id_list
 
     def get_game_info_at_certain_step(self, obs, infos):
@@ -410,15 +448,18 @@ class Agent:
             adj: Index of the guessing adjective in vocabulary
             noun: Index of the guessing noun in vocabulary
         """
+        current_verb = self.tokenizer.decode([verb])
+        current_adj = self.tokenizer.decode([adj])
+        current_noun = self.tokenizer.decode([noun])
         # turns 3 indices into actual command strings
-        if self.word_vocab[verb] in self.single_word_verbs:
-            return self.word_vocab[verb]
-        if self.word_vocab[verb] in self.two_word_verbs:
-            return " ".join([self.word_vocab[verb], self.word_vocab[noun]])
+        if current_verb in self.single_word_verbs:
+            return current_verb
+        if current_verb in self.two_word_verbs:
+            return " ".join([current_verb, current_noun])
         if adj == self.EOS_id:
-            return " ".join([self.word_vocab[verb], self.word_vocab[noun]])
+            return " ".join([current_verb, current_noun])
         else:
-            return " ".join([self.word_vocab[verb], self.word_vocab[adj], self.word_vocab[noun]])
+            return " ".join([current_verb, current_adj, current_noun])
 
     def act_random(self, obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words):
         with torch.no_grad():

@@ -4,6 +4,8 @@ import h5py
 import numpy as np
 import torch.nn.functional as F
 
+from transformers import DistilBertModel
+
 
 def compute_mask(x):
     mask = torch.ne(x, 0).float()
@@ -75,14 +77,16 @@ def PosEncoder(x, min_timescale=1.0, max_timescale=1.0e4):
     signal = signal.cuda() if x.is_cuda else signal
     return x + signal
 
+
 def get_timing_signal(length, channels, min_timescale=1.0, max_timescale=1.0e4):
     position = torch.arange(length).type(torch.float32)
     num_timescales = channels // 2
-    log_timescale_increment = (math.log(float(max_timescale) / float(min_timescale)) / (float(num_timescales)-1))
+    log_timescale_increment = (math.log(
+        float(max_timescale) / float(min_timescale)) / (float(num_timescales)-1))
     inv_timescales = min_timescale * torch.exp(
-            torch.arange(num_timescales).type(torch.float32) * -log_timescale_increment)
+        torch.arange(num_timescales).type(torch.float32) * -log_timescale_increment)
     scaled_time = position.unsqueeze(1) * inv_timescales.unsqueeze(0)
-    signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim = 1)
+    signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)
     m = torch.nn.ZeroPad2d((0, (channels % 2), 0, 0))
     signal = m(signal)
     signal = signal.view(1, length, channels)
@@ -110,7 +114,8 @@ class H5EmbeddingManager(object):
     def __init__(self, h5_path):
         f = h5py.File(h5_path, 'r')
         self.W = np.array(f['embedding'])
-        print("embedding data type=%s, shape=%s" % (type(self.W), self.W.shape))
+        print("embedding data type=%s, shape=%s" %
+              (type(self.W), self.W.shape))
         self.id2word = f['words_flatten'][0].split('\n')
         self.word2id = dict(zip(self.id2word, range(len(self.id2word))))
 
@@ -131,7 +136,8 @@ class H5EmbeddingManager(object):
         elif 'one' == oov_init:
             W2V = np.ones(shape, dtype='float32')
         else:
-            W2V = np.random.uniform(low=-scale, high=scale, size=shape).astype('float32')
+            W2V = np.random.uniform(
+                low=-scale, high=scale, size=shape).astype('float32')
         W2V[0, :] = 0
         in_vocab = np.ones(shape[0], dtype=np.bool)
         word_ids = []
@@ -162,7 +168,8 @@ class Embedding(torch.nn.Module):
         self.embedding_oov_init = embedding_oov_init
         self.pretrained_embedding_path = pretrained_embedding_path
         self.trainable = trainable
-        self.embedding_layer = torch.nn.Embedding(self.vocab_size, self.embedding_size, padding_idx=0)
+        self.embedding_layer = torch.nn.Embedding(
+            self.vocab_size, self.embedding_size, padding_idx=0)
         self.init_weights()
 
     def init_weights(self):
@@ -176,10 +183,12 @@ class Embedding(torch.nn.Module):
     def embedding_init(self):
         # Embeddings
         if self.load_pretrained is False:
-            word_embedding_init = np.random.uniform(low=-0.05, high=0.05, size=(self.vocab_size, self.embedding_size))
+            word_embedding_init = np.random.uniform(
+                low=-0.05, high=0.05, size=(self.vocab_size, self.embedding_size))
             word_embedding_init[0, :] = 0
         else:
-            embedding_initr = H5EmbeddingManager(self.pretrained_embedding_path)
+            embedding_initr = H5EmbeddingManager(
+                self.pretrained_embedding_path)
             word_embedding_init = embedding_initr.word_embedding_initialize(self.id2word,
                                                                             dim_size=self.embedding_size,
                                                                             oov_init=self.embedding_oov_init)
@@ -195,9 +204,23 @@ class Embedding(torch.nn.Module):
 
     def forward(self, x):
         embeddings = self.embedding_layer(x)  # batch x time x emb
-        embeddings = F.dropout(embeddings, p=self.dropout_rate, training=self.training)
+        embeddings = F.dropout(
+            embeddings, p=self.dropout_rate, training=self.training)
         mask = self.compute_mask(x)  # batch x time
         return embeddings, mask
+
+
+class DistilBertEncoder(torch.nn.Module):
+    def __init__(self, vocab_size):
+        super(DistilBertEncoder, self).__init__()
+        self.bert = DistilBertModel.from_pretrained('distilbert-base-uncased')
+        self.bert.resize_token_embeddings(vocab_size)
+
+        for param in self.bert.parameters():
+            param.requires_grad = False
+
+    def forward(self, x, mask):
+        return self.bert(x, attention_mask=mask)[0]
 
 
 class NoisyLinear(torch.nn.Module):
@@ -207,9 +230,12 @@ class NoisyLinear(torch.nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.std_init = std_init
-        self.weight_mu = torch.nn.Parameter(torch.empty(out_features, in_features))
-        self.weight_sigma = torch.nn.Parameter(torch.empty(out_features, in_features))
-        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
+        self.weight_mu = torch.nn.Parameter(
+            torch.empty(out_features, in_features))
+        self.weight_sigma = torch.nn.Parameter(
+            torch.empty(out_features, in_features))
+        self.register_buffer(
+            'weight_epsilon', torch.empty(out_features, in_features))
         self.bias_mu = torch.nn.Parameter(torch.empty(out_features))
         self.bias_sigma = torch.nn.Parameter(torch.empty(out_features))
         self.register_buffer('bias_epsilon', torch.empty(out_features))
@@ -220,9 +246,11 @@ class NoisyLinear(torch.nn.Module):
     def reset_parameters(self):
         mu_range = 1 / math.sqrt(self.in_features)
         self.weight_mu.data.uniform_(-mu_range, mu_range)
-        self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.in_features))
+        self.weight_sigma.data.fill_(
+            self.std_init / math.sqrt(self.in_features))
         self.bias_mu.data.uniform_(-mu_range, mu_range)
-        self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
+        self.bias_sigma.data.fill_(
+            self.std_init / math.sqrt(self.out_features))
 
     def _scale_noise(self, size):
         x = torch.randn(size)
@@ -250,13 +278,15 @@ class NoisyLinear(torch.nn.Module):
 class DepthwiseSeparableConv(torch.nn.Module):
     def __init__(self, in_ch, out_ch, k, bias=True):
         super().__init__()
-        self.depthwise_conv = torch.nn.Conv1d(in_channels=in_ch, out_channels=in_ch, kernel_size=k, groups=in_ch, padding=k // 2, bias=False)
-        self.pointwise_conv = torch.nn.Conv1d(in_channels=in_ch, out_channels=out_ch, kernel_size=1, padding=0, bias=bias)
+        self.depthwise_conv = torch.nn.Conv1d(
+            in_channels=in_ch, out_channels=in_ch, kernel_size=k, groups=in_ch, padding=k // 2, bias=False)
+        self.pointwise_conv = torch.nn.Conv1d(
+            in_channels=in_ch, out_channels=out_ch, kernel_size=1, padding=0, bias=bias)
 
     def forward(self, x):
-        x = x.transpose(1,2)
+        x = x.transpose(1, 2)
         res = torch.relu(self.pointwise_conv(self.depthwise_conv(x)))
-        res = res.transpose(1,2)
+        res = res.transpose(1, 2)
         return res
 
 
@@ -266,9 +296,12 @@ class SelfAttention(torch.nn.Module):
         self.block_hidden_dim = block_hidden_dim
         self.n_head = n_head
         self.dropout = dropout
-        self.key_linear = torch.nn.Linear(block_hidden_dim, block_hidden_dim, bias=False)
-        self.value_linear = torch.nn.Linear(block_hidden_dim, block_hidden_dim, bias=False)
-        self.query_linear = torch.nn.Linear(block_hidden_dim, block_hidden_dim, bias=False)
+        self.key_linear = torch.nn.Linear(
+            block_hidden_dim, block_hidden_dim, bias=False)
+        self.value_linear = torch.nn.Linear(
+            block_hidden_dim, block_hidden_dim, bias=False)
+        self.query_linear = torch.nn.Linear(
+            block_hidden_dim, block_hidden_dim, bias=False)
         bias = torch.empty(1)
         torch.nn.init.constant_(bias, 0)
         self.bias = torch.nn.Parameter(bias)
@@ -281,14 +314,14 @@ class SelfAttention(torch.nn.Module):
         Q = self.split_last_dim(query, self.n_head)
         K = self.split_last_dim(key, self.n_head)
         V = self.split_last_dim(value, self.n_head)
-        
+
         assert self.block_hidden_dim % self.n_head == 0
         key_depth_per_head = self.block_hidden_dim // self.n_head
         Q *= key_depth_per_head**-0.5
         x = self.dot_product_attention(Q, K, V, mask=query_mask)
         return self.combine_last_two_dim(x.permute(0, 2, 1, 3))
 
-    def dot_product_attention(self, q, k ,v, bias=False, mask=None):
+    def dot_product_attention(self, q, k, v, bias=False, mask=None):
         """dot-product attention.
         Args:
         q: a Tensor with shape [batch, heads, length_q, depth_k]
@@ -345,11 +378,13 @@ class EncoderBlock(torch.nn.Module):
     def __init__(self, conv_num, ch_num, k, block_hidden_dim, n_head, dropout):
         super().__init__()
         self.dropout = dropout
-        self.convs = torch.nn.ModuleList([DepthwiseSeparableConv(ch_num, ch_num, k) for _ in range(conv_num)])
+        self.convs = torch.nn.ModuleList(
+            [DepthwiseSeparableConv(ch_num, ch_num, k) for _ in range(conv_num)])
         self.self_att = SelfAttention(block_hidden_dim, n_head, dropout)
         self.FFN_1 = torch.nn.Linear(ch_num, ch_num)
         self.FFN_2 = torch.nn.Linear(ch_num, ch_num)
-        self.norm_C = torch.nn.ModuleList([torch.nn.LayerNorm(block_hidden_dim) for _ in range(conv_num)])
+        self.norm_C = torch.nn.ModuleList(
+            [torch.nn.LayerNorm(block_hidden_dim) for _ in range(conv_num)])
         self.norm_1 = torch.nn.LayerNorm(block_hidden_dim)
         self.norm_2 = torch.nn.LayerNorm(block_hidden_dim)
         self.conv_num = conv_num
@@ -365,7 +400,8 @@ class EncoderBlock(torch.nn.Module):
                 out = F.dropout(out, p=self.dropout, training=self.training)
             out = conv(out)
             out = out * mask.unsqueeze(-1)
-            out = self.layer_dropout(out, res, self.dropout * float(l) / total_layers)
+            out = self.layer_dropout(
+                out, res, self.dropout * float(l) / total_layers)
             l += 1
         res = out
         out = self.norm_1(out)
@@ -373,7 +409,8 @@ class EncoderBlock(torch.nn.Module):
         # self attention
         out = self.self_att(out, self_att_mask, out, out)
         out = out * mask.unsqueeze(-1)
-        out = self.layer_dropout(out, res, self.dropout * float(l) / total_layers)
+        out = self.layer_dropout(
+            out, res, self.dropout * float(l) / total_layers)
         l += 1
         res = out
         out = self.norm_2(out)
@@ -383,7 +420,8 @@ class EncoderBlock(torch.nn.Module):
         out = torch.relu(out)
         out = self.FFN_2(out)
         out = out * mask.unsqueeze(-1)
-        out = self.layer_dropout(out, res, self.dropout * float(l) / total_layers)
+        out = self.layer_dropout(
+            out, res, self.dropout * float(l) / total_layers)
         l += 1
         return out
 
@@ -433,7 +471,8 @@ class CQAttention(torch.nn.Module):
         max_q_len = Q.size(-2)
         max_context_len = C.size(-2)
         subres0 = torch.matmul(C, self.w4C).expand([-1, -1, max_q_len])
-        subres1 = torch.matmul(Q, self.w4Q).transpose(1, 2).expand([-1, max_context_len, -1])
+        subres1 = torch.matmul(Q, self.w4Q).transpose(
+            1, 2).expand([-1, max_context_len, -1])
         subres2 = torch.matmul(C * self.w4mlu, Q.transpose(1, 2))
         res = subres0 + subres1 + subres2
         res += self.bias
@@ -446,11 +485,13 @@ class AnswerPointer(torch.nn.Module):
         self.noisy_net = noisy_net
         if self.noisy_net:
             self.w_1 = NoisyLinear(block_hidden_dim * 2, 1)
-            self.w_1_advantage = NoisyLinear(block_hidden_dim * 2, block_hidden_dim)
+            self.w_1_advantage = NoisyLinear(
+                block_hidden_dim * 2, block_hidden_dim)
             self.w_2 = NoisyLinear(block_hidden_dim, 1)
         else:
             self.w_1 = torch.nn.Linear(block_hidden_dim * 2, 1)
-            self.w_1_advantage = torch.nn.Linear(block_hidden_dim * 2, block_hidden_dim)
+            self.w_1_advantage = torch.nn.Linear(
+                block_hidden_dim * 2, block_hidden_dim)
             self.w_2 = torch.nn.Linear(block_hidden_dim, 1)
 
     def forward(self, M1, M2, mask):
@@ -458,7 +499,8 @@ class AnswerPointer(torch.nn.Module):
         X = torch.relu(self.w_1(X_concat))
         X_advantage = torch.relu(self.w_1_advantage(X_concat))
         X = X * mask.unsqueeze(-1)
-        X = X + X_advantage - X_advantage.mean(-1, keepdim=True)  # combine streams
+        X = X + X_advantage - \
+            X_advantage.mean(-1, keepdim=True)  # combine streams
         X = X * mask.unsqueeze(-1)
         Y = self.w_2(X).squeeze()
         Y = Y * mask
@@ -469,7 +511,7 @@ class AnswerPointer(torch.nn.Module):
             self.w_1.reset_noise()
             self.w_1_advantage.reset_noise()
             self.w_2.reset_noise()
-    
+
     def zero_noise(self):
         if self.noisy_net:
             self.w_1.zero_noise()
@@ -482,15 +524,18 @@ class Highway(torch.nn.Module):
         super().__init__()
         self.n = layer_num
         self.dropout = dropout
-        self.linear = torch.nn.ModuleList([torch.nn.Linear(size, size) for _ in range(self.n)])
-        self.gate = torch.nn.ModuleList([torch.nn.Linear(size, size) for _ in range(self.n)])
+        self.linear = torch.nn.ModuleList(
+            [torch.nn.Linear(size, size) for _ in range(self.n)])
+        self.gate = torch.nn.ModuleList(
+            [torch.nn.Linear(size, size) for _ in range(self.n)])
 
     def forward(self, x):
         #x: shape [batch_size, hidden_size, length]
         for i in range(self.n):
             gate = torch.sigmoid(self.gate[i](x))
             nonlinear = self.linear[i](x)
-            nonlinear = F.dropout(nonlinear, p=self.dropout, training=self.training)
+            nonlinear = F.dropout(
+                nonlinear, p=self.dropout, training=self.training)
             x = gate * nonlinear + (1 - gate) * x
         return x
 
@@ -498,18 +543,22 @@ class Highway(torch.nn.Module):
 class MergeEmbeddings(torch.nn.Module):
     def __init__(self, block_hidden_dim, word_emb_dim, char_emb_dim, dropout=0):
         super().__init__()
-        self.conv2d = torch.nn.Conv2d(char_emb_dim, block_hidden_dim, kernel_size = (1, 5), padding=0, bias=True)
+        self.conv2d = torch.nn.Conv2d(
+            char_emb_dim, block_hidden_dim, kernel_size=(1, 5), padding=0, bias=True)
         torch.nn.init.kaiming_normal_(self.conv2d.weight, nonlinearity='relu')
 
-        self.linear = torch.nn.Linear(word_emb_dim + block_hidden_dim, block_hidden_dim, bias=False)
+        self.linear = torch.nn.Linear(
+            word_emb_dim + block_hidden_dim, block_hidden_dim, bias=False)
         self.high = Highway(2, size=block_hidden_dim, dropout=dropout)
 
     def forward(self, word_emb, char_emb, mask=None):
         char_emb = char_emb.permute(0, 3, 1, 2)  # batch x emb x time x nchar
-        char_emb = self.conv2d(char_emb)  # batch x block_hidden_dim x time x nchar-5+1
+        # batch x block_hidden_dim x time x nchar-5+1
+        char_emb = self.conv2d(char_emb)
         if mask is not None:
             char_emb = char_emb * mask.unsqueeze(1).unsqueeze(-1)
-        char_emb = F.relu(char_emb)  # batch x block_hidden_dim x time x nchar-5+1
+        # batch x block_hidden_dim x time x nchar-5+1
+        char_emb = F.relu(char_emb)
         char_emb, _ = torch.max(char_emb, dim=3)  # batch x emb x time
         char_emb = char_emb.permute(0, 2, 1)  # batch x time x emb
         emb = torch.cat([char_emb, word_emb], dim=2)

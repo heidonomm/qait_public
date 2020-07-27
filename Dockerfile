@@ -33,6 +33,8 @@ RUN pip --version
 RUN pip show textworld
 RUN pip show gym
 
+VOLUME qait-data
+
 # Training
 CMD ["python", "train.py", "./"]
 # FROM continuumio/miniconda3:latest

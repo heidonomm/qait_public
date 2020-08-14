@@ -4,7 +4,7 @@ import h5py
 import numpy as np
 import torch.nn.functional as F
 
-from transformers import DistilBertModel
+from transformers import GPT2Model
 
 
 def compute_mask(x):
@@ -210,17 +210,17 @@ class Embedding(torch.nn.Module):
         return embeddings, mask
 
 
-class DistilBertEncoder(torch.nn.Module):
+class GPT2Encoder(torch.nn.Module):
     def __init__(self, vocab_size):
-        super(DistilBertEncoder, self).__init__()
-        self.bert = DistilBertModel.from_pretrained('distilbert-base-uncased')
-        self.bert.resize_token_embeddings(vocab_size)
+        super(GPT2Encoder, self).__init__()
+        self.gpt = GPT2Model.from_pretrained('gpt2')
+        # self.gpt.resize_token_embeddings(vocab_size)
 
-        for param in self.bert.parameters():
+        for param in self.gpt.parameters():
             param.requires_grad = False
 
     def forward(self, x, mask):
-        return self.bert(x, attention_mask=mask)[0]
+        return self.gpt(x, attention_mask=mask)[0]
 
 
 class NoisyLinear(torch.nn.Module):

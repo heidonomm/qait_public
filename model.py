@@ -4,9 +4,8 @@ import numpy as np
 
 import torch
 import torch.nn.functional as F
-from transformers import DistilBertModel, DistilBertConfig
 
-from layers import Embedding, MergeEmbeddings, EncoderBlock, DistilBertEncoder, CQAttention, AnswerPointer, masked_softmax, NoisyLinear, compute_mask
+from layers import Embedding, MergeEmbeddings, EncoderBlock, GPT2Encoder, CQAttention, AnswerPointer, masked_softmax, NoisyLinear, compute_mask
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +103,7 @@ class DQN(torch.nn.Module):
 
         # self.encoders = torch.nn.ModuleList([EncoderBlock(conv_num=self.encoder_conv_num, ch_num=self.block_hidden_dim, k=7,
         #                                                   block_hidden_dim=self.block_hidden_dim, n_head=self.n_heads, dropout=self.block_dropout) for _ in range(self.encoder_layers)])
-        self.bert_encoder = DistilBertEncoder(vocab_size=self.word_vocab_size)
+        self.gpt_encoder = GPT2Encoder(vocab_size=self.word_vocab_size)
 
         self.context_question_attention = CQAttention(
             block_hidden_dim=768, dropout=self.attention_dropout)
@@ -188,7 +187,7 @@ class DQN(torch.nn.Module):
         #     encoding_sequence = self.encoders[i](merged_embeddings, mask, square_mask, i * (
         #         self.encoder_conv_num + 2) + 1, self.encoder_layers)  # batch x time x enc
         mask = compute_mask(_input_words)
-        encoding_sequence = self.bert_encoder(_input_words, mask)
+        encoding_sequence = self.gpt_encoder(_input_words, mask)
 
         return encoding_sequence, mask
 

@@ -144,4 +144,4 @@ glove.6B.300d.txt
 *.pt
 
 ## script for testing stuff
-script.py
+script*.py

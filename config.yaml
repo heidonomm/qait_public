@@ -28,9 +28,9 @@ evaluate:
 checkpoint:
   save_checkpoint: True
   save_frequency: 1000 # episode
-  experiment_tag: "distilbert-pretrained-10games"
+  experiment_tag: "gpt2-10games"
   load_pretrained: True # during test, enable this so that the agent load your pretrained model
-  load_from_tag: "distilbert-pretrained-10games" # if you want to load from prev experiment
+  load_from_tag: "gpt2-10games" # if you want to load from prev experiment
 
 replay:
   discount_gamma: 0.9

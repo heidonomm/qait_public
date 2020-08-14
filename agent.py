@@ -17,7 +17,7 @@ import sys
 
 import spacy
 import numpy as np
-from transformers import DistilBertTokenizerFast
+from transformers import GPT2TokenizerFast
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -32,9 +32,10 @@ class Agent:
         #                   "/", ":", ";", "=-", "=", "?", "`", "(", ")", "a-"]
         # self.tokenizer = DistilBertTokenizerFast("vocabularies/word_vocab.txt", bos_token="<s>", eos_token="</s>", unk_token="<unk>",
         #                                          sep_token="<|>", pad_token="<pad>", additional_special_tokens=special_tokens)
-        self.tokenizer = DistilBertTokenizerFast.from_pretrained(
-            'distilbert-base-uncased')
-        self.tokenizer.add_tokens(['</s>', '<|>'])
+        self.tokenizer = GPT2TokenizerFast.from_pretrained(
+            'gpt2')
+        self.tokenizer.pad_token = "0"
+        self.tokenizer.eos_token = "<|endoftext|>"
         self.load_config()
 
         self.online_net = DQN(config=self.config,
@@ -67,17 +68,12 @@ class Agent:
         self.clip_grad_norm = self.config['training']['optimizer']['clip_grad_norm']
 
     def load_config(self):
-        # word vocab
-        # with open("vocabularies/word_vocab.txt") as f:
-        #     self.word_vocab = f.read().split("\n")
-        # # INITIAL
-        # self.word2id = {}
-        # for i, w in enumerate(self.word_vocab):
-        #     self.word2id[w] = i
-        self.word2id = self.tokenizer.get_vocab()
         self.word_vocab = []
-        with open("vocabularies/bert_vocab.txt", encoding="utf-8") as f:
+        with open("vocabularies/gpt_vocab.txt", encoding="utf-8") as f:
             self.word_vocab = f.read().split("\n")
+        self.word2id = {}
+        for i, w in enumerate(self.word_vocab):
+            self.word2id[w] = i
         # char vocab
         with open("vocabularies/char_vocab.txt", encoding="utf-8") as f:
             self.char_vocab = f.read().split("\n")
@@ -86,7 +82,7 @@ class Agent:
             self.char2id[w] = i
 
         # self.BOS_id = self.word2id["<s>"]
-        self.EOS_id = self.word2id["</s>"]
+        self.EOS_id = self.word2id["<|endoftext|>"]
         self.train_data_size = self.config['general']['train_data_size']
         self.question_type = self.config['general']['question_type']
         self.random_map = self.config['general']['random_map']
@@ -278,7 +274,7 @@ class Agent:
         sentence_token_list = [self.tokenizer.tokenize(
             item) for item in string_list]
         sentence_id_list = [self.tokenizer.encode(
-            sentence, add_special_tokens=False) for sentence in string_list]
+            sentence, add_special_tokens=True) for sentence in string_list]
         input_sentence = pad_sequences(
             sentence_id_list, maxlen=max_len(sentence_id_list)).astype('int32')
         input_sentence = to_pt(input_sentence, self.use_cuda)
@@ -326,7 +322,7 @@ class Agent:
             possible_nouns.append(list(set(object_nouns) & set(
                 local_word_list[i]) - set([""])) + directions)
             possible_adjs.append(list(set(object_adjs) & set(
-                local_word_list[i]) - set([""])) + ["</s>"])
+                local_word_list[i]) - set([""])) + ["<|endoftext|>"])
 
         return observation_strings, [possible_verbs, possible_adjs, possible_nouns]
 

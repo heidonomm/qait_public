@@ -261,6 +261,7 @@ class Agent:
         self.naozi.reset(batch_size=batch_size)
 
     # seems like sentence_id_list and input_sentence are the same as no padding actually happens
+    # // didnt test but padding should happen when batch_size > 1
     def get_agent_inputs(self, string_list):
         # ## INITIAL:
         # # split word wise
@@ -819,6 +820,7 @@ class Agent:
         self.optimizer.step()  # apply gradients
         return to_np(torch.mean(qa_loss))
 
+    # Not necessary for KG-DQN, as that architecture calculates epsilon based on current 'frame count'
     def finish_of_episode(self, episode_no, batch_size):
         # Update target networt
         if (episode_no + batch_size) % self.target_net_update_frequency <= episode_no % self.target_net_update_frequency:

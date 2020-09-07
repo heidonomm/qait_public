@@ -95,6 +95,7 @@ def train(data_path):
         game_queue = []
     f = open("accuracies_avg_pretrained10games.txt", "a+", encoding="utf-8")
     episode_no = 0
+    agent.set_episode_number(episode_no)
     if agent.train_data_size == -1:
         # endless mode
         game_generator_queue = game_generator.game_generator_queue(
@@ -140,6 +141,8 @@ def train(data_path):
 
         env = gym.make(env_id)
         env.seed(episode_no)
+        env.compute_intermediate_reward()
+        env.activate_state_tracking()
 
         obs, infos = env.reset()
         batch_size = len(obs)

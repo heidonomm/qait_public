@@ -1,32 +1,43 @@
-import networkx as nx
+import itertools
+import logging
+import tempfile
+import os
+from os.path import join as pjoin
+from distutils.dir_util import copy_tree
 
+import networkx as nx
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.autograd as autograd
 import torch.nn.functional as F
 import spacy
-
-import logging
 import textworld
 import matplotlib.pyplot as plt
+import gym
 
-from representations import StateNAction
-from schedule import *
+from kgdqn.representations import StateNAction
+from kgdqn.schedule import *
 #from utils.priority_replay import PriorityReplayBuffer
 #from utils.replay import ReplayBuffer
+from kgdqn.graph_replay import *
+from kgdqn.models import KGDQN
+import game_generator
 
-from graph_replay import *
-
-from models import KGDQN
-
-import numpy as np
-import itertools
+request_infos = textworld.EnvInfos(description=True,
+                                   inventory=True,
+                                   verbs=True,
+                                   facts=True,
+                                   last_action=True,
+                                   game=True,
+                                   admissible_commands=True,
+                                   extras=["object_locations", "object_attributes", "uuid"])
 
 
 class KGDQNTrainer(object):
 
-    def __init__(self, game, params):
+    def __init__(self, params, games, games_dir):
         self.num_episodes = params['num_episodes']
         self.state = StateNAction()
         self.use_cuda = True if torch.cuda.is_available() else False
@@ -39,8 +50,13 @@ class KGDQNTrainer(object):
                             self.filename + '.log', filemode='w')
         logging.warning("Parameters", params)
 
-        self.env = textworld.start(game)
+        # self.env = gym.make(games)
+
+        print(f"games_dir listdir: {os.listdir(games_dir)}")
+
+        self.env = textworld.start(games[0])
         self.params = params
+        self.env.compute_intermediate_reward()
 
         if params['replay_buffer_type'] == 'priority':
             self.replay_buffer = GraphPriorityReplayBuffer(
@@ -153,12 +169,16 @@ class KGDQNTrainer(object):
 
         return loss
 
+    def generate_text_files(self, games_dir):
+        os.system(f"python datacollector.py {games_dir} collect")
+
     def train(self):
+
         total_frames = 0
         for e_idx in range(1, self.num_episodes + 1):
             print("Episode:", e_idx)
             logging.info("Episode:" + str(e_idx))
-            self.env.enable_extra_info("description")
+            # self.env.enable_extra_info("description")
             state = self.env.reset()
             self.state.step(state.description, pruned=self.params['pruned'])
             self.model.train()

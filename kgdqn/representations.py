@@ -20,7 +20,7 @@ def call_stanford_openie(sentence):
 
 
 class StateNAction(object):
-    
+
     def __init__(self):
         self.graph_state = nx.DiGraph()
 
@@ -34,38 +34,49 @@ class StateNAction(object):
         self.all_actions = self.load_action_dictionary()
 
         self.vocab_kge = self.load_vocab_kge()
-        self.adj_matrix = np.zeros((len(self.vocab_kge['entity']), len(self.vocab_kge['entity'])))
-        self.all_actions_rep = [self.get_action_rep_drqa(x) for x in list(self.all_actions.keys())]
+        self.adj_matrix = np.zeros(
+            (len(self.vocab_kge['entity']), len(self.vocab_kge['entity'])))
+        self.all_actions_rep = [self.get_action_rep_drqa(
+            x) for x in list(self.all_actions.keys())]
         self.room = ""
 
     def visualize(self):
         pos = nx.spring_layout(self.graph_state)
-        edge_labels = {e: self.graph_state.edges[e]['rel'] for e in self.graph_state.edges}
+        edge_labels = {
+            e: self.graph_state.edges[e]['rel'] for e in self.graph_state.edges}
         nx.draw_networkx_edge_labels(self.graph_state, pos, edge_labels)
-        nx.draw(self.graph_state, pos=pos, with_labels=True, node_size=200, font_size=10)
+        nx.draw(self.graph_state, pos=pos, with_labels=True,
+                node_size=200, font_size=10)
         plt.show()
 
     def load_vocab_kge(self):
         ent = {}
-        with open('initialize/state/entity2id.tsv', 'r') as f:
-            for line in f:
-                e, eid = line.split('\t')
-                ent[e.strip()] = int(eid.strip())
-        rel = {}
-        with open('initialize/state/relation2id.tsv', 'r') as f:
-            for line in f:
-                r, rid = line.split('\t')
-                rel[r.strip()] = int(rid.strip())
+        with open('vocabularies/entity2id.txt', 'r') as f:
+            for index, line in enumerate(f):
+                ent[line.strip()] = index
+        # rel = {}
+        # with open('vocabularies/relation2id.tsv', 'r') as f:
+        #     for line in f:
+        #         r, rid = line.split('\t')
+        #         rel[r.strip()] = int(rid.strip())
 
-        return {'entity': ent, 'relation': rel}
+        return {'entity': ent}
 
     def load_vocab(self):
-        vocab = eval(open('../w2id.txt', 'r').readline())
-        return vocab
+        vocab_dict = {}
+        with open("vocabularies/w2id.txt", encoding="utf-8") as f:
+            vocab_list = f.read().split()
+        for i, word in enumerate(vocab_list):
+            vocab_dict[word] = i
+        return vocab_dict
 
     def load_action_dictionary(self):
-        all_actions = eval(open('../act2id.txt', 'r').readline())
-        return all_actions
+        action_dict = {}
+        with open("vocabularies/act2id.txt", encoding="utf-8") as f:
+            action_list = f.read().split()
+        for i, word in enumerate(action_list):
+            action_dict[word] = i
+        return action_dict
 
     def update_state_base(self, visible_state):
         visible_state = visible_state.split('-')
@@ -95,13 +106,14 @@ class StateNAction(object):
 
         self.visible_state = str(visible_state)
         rules = []
-        
+
         sents = call_stanford_openie(self.visible_state)['sentences']
 
         for ov in sents:
             triple = ov['openie']
             for tr in triple:
-                h, r, t = tr['subject'].lower(), tr['relation'].lower(), tr['object'].lower()
+                h, r, t = tr['subject'].lower(
+                ), tr['relation'].lower(), tr['object'].lower()
 
                 if h == 'we':
                     h = 'you'
@@ -126,7 +138,7 @@ class StateNAction(object):
             if 'see' in r or 'make out' in r:
                 link.append((r, t))
                 remove.append(r)
-            #else:
+            # else:
             #    link.append((r, t))
 
         prev_room = self.room
@@ -148,13 +160,16 @@ class StateNAction(object):
                     if prev_room != "":
                         graph_copy = self.graph_state.copy()
                         graph_copy.remove_edge('you', prev_room)
-                        con_cs = [graph_copy.subgraph(c) for c in nx.weakly_connected_components(graph_copy)]
+                        con_cs = [graph_copy.subgraph(
+                            c) for c in nx.weakly_connected_components(graph_copy)]
 
                         for con_c in con_cs:
                             if prev_room in con_c.nodes:
-                                prev_room_subgraph = nx.induced_subgraph(graph_copy, con_c.nodes)
+                                prev_room_subgraph = nx.induced_subgraph(
+                                    graph_copy, con_c.nodes)
                             if 'you' in con_c.nodes:
-                                prev_you_subgraph = nx.induced_subgraph(graph_copy, con_c.nodes)
+                                prev_you_subgraph = nx.induced_subgraph(
+                                    graph_copy, con_c.nodes)
 
         for l in link:
             add_rules.append((room, l[0], l[1]))
@@ -169,10 +184,10 @@ class StateNAction(object):
             r = self.graph_state[edge[0]][edge[1]]['rel']
             if r in prev_remove:
                 self.graph_state.remove_edge(*edge)
-                
+
         if prev_you_subgraph is not None:
             self.graph_state.remove_edges_from(prev_you_subgraph.edges)
-        
+
         for rule in add_rules:
             u = '_'.join(str(rule[0]).split())
             v = '_'.join(str(rule[2]).split())
@@ -185,12 +200,13 @@ class StateNAction(object):
         print(self.graph_state.edges)
 
         return
-    
+
     def get_state_rep_kge(self):
         ret = []
-        self.adj_matrix = np.zeros((len(self.vocab_kge['entity']), len(self.vocab_kge['entity'])))
+        self.adj_matrix = np.zeros(
+            (len(self.vocab_kge['entity']), len(self.vocab_kge['entity'])))
         #adj = []
-        #for g in self.graph_state.nodes:
+        # for g in self.graph_state.nodes:
         #    ret.append(self.vocab_kge['entity']['_'.join(str(g).split())])
 
         for u, v in self.graph_state.edges:
@@ -210,7 +226,7 @@ class StateNAction(object):
         return list(set(ret))
 
     def get_visible_state_rep_drqa(self, state_description):
-        state_desc_num = []#120 * [0]
+        state_desc_num = []  # 120 * [0]
 
         for i, token in enumerate(word_tokenize(state_description)[:80]):
             if token not in self.vocab_drqa.keys():
@@ -234,8 +250,8 @@ class StateNAction(object):
         return list(self.all_actions.keys())
 
     def get_cur_actions_pruned(self):
-        action_ents = {a:[] for a in self.all_actions.keys()}
-        action_scores = {a:0 for a in self.all_actions.keys()}
+        action_ents = {a: [] for a in self.all_actions.keys()}
+        action_scores = {a: 0 for a in self.all_actions.keys()}
         for action in self.all_actions.keys():
 
             for n in self.graph_state.nodes:
@@ -256,7 +272,8 @@ class StateNAction(object):
             except nx.NodeNotFound:
                 continue
 
-        sorted_scores = sorted(action_scores.items(), key=lambda kv: kv[1], reverse=True)
+        sorted_scores = sorted(action_scores.items(),
+                               key=lambda kv: kv[1], reverse=True)
         max_score = max([a[1] for a in sorted_scores])
         max_actions = 36
 
@@ -295,15 +312,17 @@ class StateNAction(object):
         #ret = " ".join([self.rev_vocab_drqa[i] for i in action_ids if i != 0])
         ret = ret.strip()
         return ret
-    
+
     def step_pruned(self, visible_state, prev_action=None):
         self.update_state(visible_state, prev_action)
 
         self.vis_pruned_actions = self.get_cur_actions_pruned()
 
-        self.pruned_actions_rep = [self.get_action_rep_drqa(a) for a in self.vis_pruned_actions]
+        self.pruned_actions_rep = [self.get_action_rep_drqa(
+            a) for a in self.vis_pruned_actions]
 
-        inter = self.visible_state + "The actions are:" + ",".join(self.vis_pruned_actions) + "."
+        inter = self.visible_state + "The actions are:" + \
+            ",".join(self.vis_pruned_actions) + "."
         self.drqa_input = self.get_visible_state_rep_drqa(inter)
 
         self.graph_state_rep = self.get_state_rep_kge(), self.adj_matrix
@@ -316,11 +335,13 @@ class StateNAction(object):
 
         self.vis_pruned_actions = self.get_cur_actions()
 
-        self.pruned_actions_rep = [self.get_action_rep_drqa(a) for a in self.vis_pruned_actions]
+        self.pruned_actions_rep = [self.get_action_rep_drqa(
+            a) for a in self.vis_pruned_actions]
 
-        inter = self.visible_state + "The actions are:" + ",".join(self.vis_pruned_actions) + "."
+        inter = self.visible_state + "The actions are:" + \
+            ",".join(self.vis_pruned_actions) + "."
         self.drqa_input = self.get_visible_state_rep_drqa(inter)
 
         self.graph_state_rep = self.get_state_rep_kge(), self.adj_matrix
 
-        #return graph_state_rep, vis_feasible_actions, feasible_action_rep, drqa_input
+        # return graph_state_rep, vis_feasible_actions, feasible_action_rep, drqa_input

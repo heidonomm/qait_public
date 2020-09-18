@@ -7,9 +7,9 @@ import spacy
 import numpy as np
 import random
 
-from drqa import *
+from .drqa import *
 from layers import compute_mask, EncoderBlock, AnswerPointer, NoisyLinear, masked_softmax
-from layers_kg import *
+from .layers_kg import *
 
 
 class GAT(nn.Module):
@@ -36,6 +36,7 @@ class KGDQN(nn.Module):
     def __init__(self, params, actions):
         super(KGDQN, self).__init__()
         self.params = params
+        self.answer_type = "location"
 
         # Check if cuda is available:
         self.use_cuda = True if torch.cuda.is_available() else False
@@ -44,7 +45,7 @@ class KGDQN(nn.Module):
             pretrained_action_embs = torch.load(params['act_emb_init_file'])[
                 'state_dict']['embeddings']['weight']
             self.action_emb = nn.Embedding.from_pretrained(
-                pretrained_action_embs, freeze=False)
+                pretrained_action_embs)
             self.action_drqa = ActionDrQA(params, pretrained_action_embs)
             self.state_gat = StateNetwork(
                 actions, params, pretrained_action_embs)
@@ -67,7 +68,7 @@ class KGDQN(nn.Module):
                                                                  "block_hidden_dim"], n_head=self.params["n_heads"],
                                                              dropout=self.params["block_dropout"]) for _ in range(self.params["aggregation_layers"])])
 
-        linear_function = NoisyLinear if self.noisy_net else torch.nn.Linear
+        linear_function = NoisyLinear if self.params["noisy_net"] else torch.nn.Linear
 
         self.answer_pointer = AnswerPointer(
             block_hidden_dim=self.params["block_hidden_dim"], noisy_net=self.params["noisy_net"])
@@ -163,8 +164,8 @@ class KGDQN(nn.Module):
         context, decoder_init, c_t = self.action_enc(_input_words)
         return decoder_init, mask
 
-    # TODO: define epsilon, epsilon2
     def get_match_representations(self, doc_encodings, doc_mask, q_encodings, q_mask, state, epsilon, epsilon2=0.15):
+
         graph_state_rep = state.graph_state_rep
         if not self.params['pruned']:
             epsilon2 = 0
@@ -205,32 +206,32 @@ class KGDQN(nn.Module):
 
         return actions_ids, picked
 
-    def answer_question(self, matching_representation_sequence, doc_mask):
-        square_mask = torch.bmm(doc_mask.unsqueeze(-1),
-                                doc_mask.unsquueze(1))  # batch x time x time
+    # def answer_question(self, matching_representation_sequence, doc_mask):
+    #     square_mask = torch.bmm(doc_mask.unsqueeze(-1),
+    #                             doc_mask.unsquueze(1))  # batch x time x time
 
-        M0 = matching_representation_sequence
-        M1 = M0
-        for i in range(self.aggregation_layers):
-            M0 = self.aggregators[i](
-                M0, doc_mask, square_mask, i *
-                (self.params["aggregation_conv_num"] + 2) +
-                1, self.params["aggregation_layers"]
-            )
-        M2 = M0
-        pred = self.answer_pointer(M1, M2, doc_mask)  # batch x time
-        pred_distribution = masked_softmax(pred, m=doc_mask, axis=-1)
-        if self.answer_type == "pointing":
-            return pred_distribution
+    #     M0 = matching_representation_sequence
+    #     M1 = M0
+    #     for i in range(self.aggregation_layers):
+    #         M0 = self.aggregators[i](
+    #             M0, doc_mask, square_mask, i *
+    #             (self.params["aggregation_conv_num"] + 2) +
+    #             1, self.params["aggregation_layers"]
+    #         )
+    #     M2 = M0
+    #     pred = self.answer_pointer(M1, M2, doc_mask)  # batch x time
+    #     pred_distribution = masked_softmax(pred, m=doc_mask, axis=-1)
+    #     if self.answer_type == "pointing":
+    #         return pred_distribution
 
-        z = torch.bmm(pred_distribution.view(pred_distribution.size(
-            0), 1, pred_distribution.size(1)), M2)
-        z = z.view(z.size(0), -1)  # batch x inp
-        hidden = self.question_answerer_output_1(z)  # batch x hid
-        hidden = torch.relu(hidden)  # batch x hid
-        pred = self.question_answerer_output_2(hidden)  # batch x out
-        pred = masked_softmax(pred, axis=-1)
-        return pred
+    #     z = torch.bmm(pred_distribution.view(pred_distribution.size(
+    #         0), 1, pred_distribution.size(1)), M2)
+    #     z = z.view(z.size(0), -1)  # batch x inp
+    #     hidden = self.question_answerer_output_1(z)  # batch x hid
+    #     hidden = torch.relu(hidden)  # batch x hid
+    #     pred = self.question_answerer_output_2(hidden)  # batch x out
+    #     pred = masked_softmax(pred, axis=-1)
+    #     return pred
 
 
 class StateNetwork(nn.Module):
@@ -253,7 +254,7 @@ class StateNetwork(nn.Module):
                 embeddings, freeze=False)
         else:
             self.pretrained_embeds = nn.Embedding(
-                len(self.vocab), params["embedding_size"], freeze=False)
+                len(self.vocab), params["embedding_size"])
             # self.pretrained_embeds = embeddings.new_tensor(embeddings.data)
 
         self.init_state_ent_emb()
@@ -284,15 +285,14 @@ class StateNetwork(nn.Module):
 
     def load_vocab_kge(self):
         ent = {}
-        with open('./entity2id.tsv', 'r') as f:
-            for line in f:
-                e, eid = line.split('\t')
-                ent[int(eid.strip())] = e.strip()
+        with open('vocabularies/entity2id.txt', 'r') as f:
+            for index, line in enumerate(f):
+                ent[index] = line.strip()
         return ent
 
     def load_vocab(self):
         vocab_dict = {}
-        with open("./w2id.txt", encoding="utf-8") as f:
+        with open("vocabularies/w2id.txt", encoding="utf-8") as f:
             vocab_list = f.read().split()
         for i, word in enumerate(vocab_list):
             vocab_dict[word] = i

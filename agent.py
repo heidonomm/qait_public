@@ -763,8 +763,9 @@ class Agent:
             point_distribution: Q values for each position (mapped to vocab).
             mask: vocab masks.
         """
-        vocab_distribution = vocab_distribution - torch.min(vocab_distribution, -1, keepdim=True)[
-            0] + 1e-2  # minus the min value, so that all values are non-negative
+        # minus the min value, so that all values are non-negative
+        vocab_distribution = vocab_distribution - \
+            torch.min(vocab_distribution, -1, keepdim=True)[0] + 1e-2
         vocab_distribution = vocab_distribution * mask  # batch x vocab
         indices = torch.argmax(vocab_distribution, -1)  # batch
         return indices

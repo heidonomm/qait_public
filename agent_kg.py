@@ -1,7 +1,7 @@
 from kgdqn.models import KGDQN
 from kgdqn.representations import StateNAction
 from kgdqn.graph_replay import *
-from kgdqn.graph_replay import GraphPriorityReplayBuffer, GraphReplayBuffer
+from kgdqn.schedule import *
 
 from generic import list_of_token_list_to_char_input
 from generic import to_np, to_pt, preproc, _words_to_ids, pad_sequences
@@ -49,6 +49,13 @@ class Agent_KG:
         elif self.config['replay_buffer_type'] == 'standard':
             self.replay_buffer = GraphReplayBuffer(
                 self.config['replay_buffer_size'])
+
+        if self.config['scheduler_type'] == 'exponential':
+            self.e_scheduler = ExponentialSchedule(
+                self["num_frames"], self.config['e_decay'], self.config['e_final'])
+        elif self.config['scheduler_type'] == 'linear':
+            self.e_scheduler = LinearSchedule(
+                self.config["num_frames"], self.config['e_final'])
 
         self.config["vocab_size"] = len(self.state.vocab_drqa)
 
@@ -242,12 +249,145 @@ class Agent_KG:
 
     # TODO
     def get_match_representations(self, input_observation, input_observation_char, input_quest, input_quest_char, use_model="online"):
+        epsilon = self.e_scheduler.value(self.get_episode_number())
+
         description_representation_sequence, description_mask = self.model.representation_generator(
             input_observation, input_observation_char)
         quest_representation_sequence, quest_mask = self.model.representation_generator(
             input_quest, input_quest_char)
-        match_representation_sequence = self.model.get_match_representations(
-            description_representation_sequence, description_mask, quest_representation_sequence, quest_mask, self.state)
+        action_ids, picked = self.model.get_match_representations(
+            description_representation_sequence, description_mask, quest_representation_sequence,
+            quest_mask, self.state, epsilon)
+
+        # TODO make sure the dimensions of a_ids and mask match
+        match_representation_sequence = action_ids * \
+            description_mask.unsqueeze(-1)
+        return match_representation_sequence
+
+    def get_ranks(self, input_observation, input_observation_char, input_quest, input_quest_char, word_masks, use_model="online"):
+        # get_match_repr returns actions_ids
+        match_representation_sequence = self.get_match_representations(
+            input_observation, input_observation_char, input_quest, input_quest_char)
+        return match_representation_sequence
+
+    def point_max_q_position(self, vocab_distribution, mask):
+        """
+        Generate a command by maximum q values, for epsilon greedy.
+
+        Arguments:
+            point_distribution: Q values for each position (mapped to vocab).
+            mask: vocab masks.
+        """
+        vocab_distribution = vocab_distribution - \
+            torch.min(vocab_distribution, -1, keepdim=True)[0] + 1e-2
+        vocab_distribution = vocab_distribution * mask
+        indices = torch.argmax(vocab_distribution, -1)
+        return indices
+
+    def choose_maxQ_command(self, action_ranks, word_mask=None):
+        """
+        Generate a command by maximum q values, for epsilon greedy.
+        """
+        action_indices = []
+        for i in range(len(action_ranks)):
+            ar = action_ranks[i]
+            # minus the min value, so that all values are non-negative
+            ar = ar - torch.min(ar, -1, keepdim=True)[0] + 1e-2
+            if word_mask is not None:
+                assert word_mask[i].size() == ar.size(
+                ), (word_mask[i].size().shape, ar.size())
+                ar = ar * word_mask[i]
+            action_indices.append(torch.argmax(ar, -1))  # batch
+        return action_indices
+
+    def act(self, obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words, random=False):
+        """
+        Acts upon the current list of observations.
+        One text command must be returned for each observation.
+        """
+        with torch.no_grad():
+            if self.mode == "eval":
+                return self.act_greedy(obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words)
+            if random:
+                return self.act_random(obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words)
+            batch_size = len(obs)
+
+            # local_word_masks_np = self.
+
+    def act_greedy(self, obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words):
+        """
+        Acts upon the current list of observations.
+        One text command must be returned for each observation.
+        """
+        with torch.no_grad():
+            batch_size = len(obs)
+            local_word_masks_np = self.get_local_word_masks(possible_words)
+            local_word_masks = [to_pt(item, self.use_cuda, type="float")
+                                for item in local_word_masks_np]
+            action_ranks = self.get_ranks(
+                input_observation, input_observation_char, input_quest, input_quest_char, local_word_masks)
+            word_indices_maxq = self.choose_maxQ_command(
+                action_ranks, local_word_masks)
+            chosen_indices = word_indices_maxq
+            chosen_strings = self.get_chosen_strings
+
+            for i in range(batch_size):
+                if chosen_strings[i] == "wait":
+                    self.not_finished_yet[i] = 0.0
+
+            # info for replay memory
+            for i in range(batch_size):
+                if self.prev_actions[-1][i] == "wait":
+                    self.prev_step_is_still_interacting[i] = 0.0
+            # previous step is still inteacting this is because DQN requires one step extra computation
+            replay_info = [chosen_indices, to_pt(
+                self.prev_step_is_still_interacting, self.use_cuda, "float")]
+            self.prev_actions.append(chosen_strings)
+            return chosen_strings, replay_info
+
+    def act_random(self, obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words):
+        with torch.no_grad():
+            batch_size = len(obs)
+            word_indices_random = self.choose_random_command(
+                batch_size, len(self.word_vocab), possible_words)
+            chosen_indices = word_indices_random
+            chosen_strings = self.get_chosen_strings(chosen_indices)
+
+            for i in range(batch_size):
+                if chosen_strings[i] == "wait":
+                    self.not_finished_yet[i] = 0.0
+
+            # info for replay memory
+            for i in range(batch_size):
+                if self.prev_actions[-1][i] == "wait":
+                    self.prev_step_is_still_interacting[i] = 0.0
+            # previous step is still interacting, this is because DQN requires one step extra computation
+            replay_info = [chosen_indices, to_pt(
+                self.prev_step_is_still_interacting, self.use_cuda, "float")]
+
+            # cache new info in current game step into caches
+            self.prev_actions.append(chosen_strings)
+            return chosen_strings, replay_info
+
+    def choose_random_command(self, batch_size, action_space_size, possible_words=None):
+        """
+        Generate a command randomly, for epsilon greedy.
+        """
+        action_indices = []
+        for i in range(3):
+            if possible_words is None:
+                indices = np.random.choice(action_space_size, batch_size)
+            else:
+                indices = []
+                for j in range(batch_size):
+                    mask_ids = []
+                    for w in possible_words[i][j]:
+                        if w in self.word2id:
+                            mask_ids.append(self.word2id[w])
+                    indices.append(np.random.choice(mask_ids))
+                indices = np.array(indices)
+            action_indices.append(to_pt(indices, self.use_cuda))  # batch
+        return action_indices
 
     # previously compute_td_loss
     def get_dqn_loss(self):
@@ -354,10 +494,49 @@ class Agent_KG:
         # decay lambdas
         if episode_no < self.learn_start_from_this_episode:
             return
-        if episode_no < self.e_decay + self.learn_start_from_this_episode:
+        if episode_no < self.config["e_decay"] + self.learn_start_from_this_episode:
             self.epsilon -= (self.epsilon_anneal_from -
                              self.epsilon_anneal_to) / float(self.epsilon_anneal_episodes)
             self.epsilon = max(self.epsilon, 0.0)
+
+    def get_chosen_strings(self, chosen_indices):
+        """
+        Turns list of word indices into actual command strings.
+        chosen_indices: Word indices chosen by model.
+        """
+        chosen_indices_np = [to_np(item) for item in chosen_indices]
+        res_str = []
+        batch_size = chosen_indices_np[0].shape[0]
+        for i in range(batch_size):
+            verb, adj, noun = chosen_indices_np[0][i], chosen_indices_np[1][i], chosen_indices_np[2][i]
+            res_str.append(self.word_ids_to_commands(verb, adj, noun))
+
+        return res_str
+
+    def word_ids_to_commands(self, verb, adj, noun):
+        """
+        Turn the 3 indices into actual command strings.
+
+        Arguments:
+            verb: Index of the guessing verb in vocabulary
+            adj: Index of the guessing adjective in vocabulary
+            noun: Index of the guessing noun in vocabulary
+        """
+        # TODO define tokenizer, or call stanford api here
+
+        # TODO make sure the use of tokenizer doesnt fk anything up,
+        # previously this method called tokenizer.decode() on inputs, but make sure
+        # this method is only called with indices
+
+        # turns 3 indices into actual command strings
+        if self.word_vocab[verb] in self.single_word_verbs:
+            return self.word_vocab[verb]
+        if self.word_vocab[verb] in self.two_word_verbs:
+            return " ".join([self.word_vocab[verb], self.word_vocab[noun]])
+        if adj == self.EOS_id:
+            return " ".join([self.word_vocab[verb], self.word_vocab[noun]])
+        else:
+            return " ".join([self.word_vocab[verb], self.word_vocab[adj], self.word_vocab[noun]])
 
     def reset_binarized_counter(self, batch_size):
         self.binarized_counter_dict = [{} for _ in range(batch_size)]

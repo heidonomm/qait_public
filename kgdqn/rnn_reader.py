@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers_kg import *
+from kgdqn.layers_kg import *
 
 
 class RnnDocReader(nn.Module):

@@ -1,0 +1,41 @@
+wait
+go east
+go west
+go south
+go north
+open aluminium door
+open barn door
+open black fridge
+open black oven
+open cedar gate
+open commercial glass door
+open conventional fridge
+open conventional oven
+open door
+open fiberglass door
+open fridge
+open front door
+open front gate
+open frosted-glass door
+open gate
+open gateway
+open iron gate
+open metallic door
+open metallic gate
+open metallic toolbox
+open modern fridge
+open oven
+open plastic gate
+open red door
+open red toolbox
+open screen door
+open sliding door
+open sliding patio door
+open stainless fridge
+open stainless oven
+open stone door
+open toolbox
+open white oven
+open wooden door
+open wooden gate
+open wooden gateway

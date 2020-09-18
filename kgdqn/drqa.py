@@ -6,8 +6,8 @@ import numpy as np
 import logging
 
 from torch.autograd import Variable
-from drqa_utils import AverageMeter
-from rnn_reader import RnnDocReader
+from kgdqn.drqa_utils import AverageMeter
+from kgdqn.rnn_reader import RnnDocReader
 
 
 class DocReaderModel(object):
@@ -18,7 +18,8 @@ class DocReaderModel(object):
     def __init__(self, opt, embedding=None, state_dict=None):
         # Book-keeping.
         self.opt = opt
-        self.device = torch.cuda.current_device() if opt['cuda'] else torch.device('cpu')
+        self.device = torch.cuda.current_device(
+        ) if opt['cuda'] else torch.device('cpu')
         self.updates = state_dict['updates'] if state_dict else 0
         self.train_loss = AverageMeter()
         if state_dict:
@@ -51,13 +52,14 @@ class DocReaderModel(object):
             self.optimizer = optim.Adamax(parameters,
                                           weight_decay=self.opt['weight_decay'])
         else:
-            raise RuntimeError('Unsupported optimizer: %s' % self.opt['optimizer'])
+            raise RuntimeError('Unsupported optimizer: %s' %
+                               self.opt['optimizer'])
         if self.opt_state_dict:
             self.optimizer.load_state_dict(self.opt_state_dict)
 
     def update(self, ex):
-        #print("======")
-        #print(ex)
+        # print("======")
+        # print(ex)
         # Train mode
         self.network.train()
 
@@ -79,7 +81,7 @@ class DocReaderModel(object):
 
         # Clip gradients
         torch.nn.utils.clip_grad_norm_(self.network.parameters(),
-                                      self.opt['grad_clipping'])
+                                       self.opt['grad_clipping'])
 
         # Update parameters
         self.optimizer.step()

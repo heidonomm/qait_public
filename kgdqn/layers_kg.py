@@ -69,6 +69,8 @@ class EncoderLSTM(nn.Module):
         self.encoder2decoder = nn.Linear(hidden_size * self.num_directions,
                                          hidden_size * self.num_directions
                                          )
+        self.has_cuda = True if torch.cuda.is_available() else False
+        
 
     def init_state(self, inputs):
         batch_size = inputs.size(0)
@@ -82,7 +84,10 @@ class EncoderLSTM(nn.Module):
             batch_size,
             self.hidden_size
         ), requires_grad=False)
-        return h0.cuda(), c0.cuda()
+        if self.has_cuda:
+            return h0.cuda(), c0.cuda()
+        else:
+            return h0, c0
 
     def forward(self, inputs, lengths=0):
         embeds = self.embedding(inputs)   # (batch, seq_len, embedding_size)

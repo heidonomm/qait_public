@@ -1,5 +1,6 @@
 import networkx as nx
 import requests
+import sys
 from nltk import sent_tokenize, word_tokenize
 import json
 import numpy as np
@@ -128,7 +129,7 @@ class StateNAction(object):
         room_set = False
         for rule in rules:
             h, r, t = rule
-            if 'entered' in r or 'are in' in r:
+            if 'entered' in r or 'are in' in r or 'walked into' in r or "sauntered into" in r or "arrive in" in r:
                 prev_remove.append(r)
                 if not room_set:
                     room = t
@@ -140,13 +141,17 @@ class StateNAction(object):
                 remove.append(r)
             # else:
             #    link.append((r, t))
+        if not room_set:
+            print(f"The current state string is breaking the code, add it to representations.py:131 : {self.visible_state}")
+            sys.exit()
+            
 
         prev_room = self.room
         self.room = room
         add_rules = []
         if prev_action is not None:
             for d in dirs:
-                if d in prev_action and self.room != "":
+                if d in prev_action and self.room != "" and prev_room != self.room:
                     add_rules.append((prev_room, d + ' of', room))
 
         prev_room_subgraph = None
@@ -157,9 +162,11 @@ class StateNAction(object):
                 for d in dirs:
                     if d in sent:
                         rules.append((self.room, 'has', 'exit to ' + d))
+                        print(f"new directional rule: {(self.room, 'has', 'exit to ' + d)}")
                     if prev_room != "":
                         graph_copy = self.graph_state.copy()
-                        graph_copy.remove_edge('you', prev_room)
+                        if graph_copy.has_edge("you", prev_room):
+                            graph_copy.remove_edge('you', prev_room)
                         con_cs = [graph_copy.subgraph(
                             c) for c in nx.weakly_connected_components(graph_copy)]
 
@@ -179,25 +186,42 @@ class StateNAction(object):
             if r not in remove:
                 add_rules.append(rule)
         edges = list(self.graph_state.edges)
-        print("add", add_rules)
+        # print("add", add_rules)
         for edge in edges:
-            r = self.graph_state[edge[0]][edge[1]]['rel']
-            if r in prev_remove:
-                self.graph_state.remove_edge(*edge)
+            # print(f"edge0 = {edge[0]}, edge1 = {edge[1]}, edge = {edge}")
+            try:
+                r = self.graph_state[edge[0]][edge[1]]['rel']
+                if r in prev_remove:
+                    self.graph_state.remove_edge(*edge)
+            except KeyError:
+                print(f"An error occured trying to find the relation between the two nodes -> {edge}")
 
         if prev_you_subgraph is not None:
             self.graph_state.remove_edges_from(prev_you_subgraph.edges)
 
         for rule in add_rules:
-            u = '_'.join(str(rule[0]).split())
-            v = '_'.join(str(rule[2]).split())
-            if u in self.vocab_kge['entity'].keys() and v in self.vocab_kge['entity'].keys():
-                if u != 'it' and v != 'it':
-                    self.graph_state.add_edge(rule[0], rule[2], rel=rule[1])
-        print("pre", self.graph_state.edges)
+            sub = str(rule[0])
+            rel = str(rule[1])
+            obj = str(rule[2])
+            # if sub in self.vocab_kge['entity'].keys() and obj in self.vocab_kge['entity'].keys():
+
+            ## knowledge graph entry for objects in rooms
+            if obj in self.vocab_kge["entity"].keys():
+                if sub != 'it' and obj != 'it':
+                    # print(f"from big func, h={sub}, r={rule[1]}, t={obj}")
+                    self.graph_state.add_edge(sub, obj, rel=rel)
+
+            ## TODO
+            ## knowledge graph entry for rooms
+            # if rel == "west of" or rel == "east of" or rel == "north of" or rel == "south of":
+            #     # double check just in case
+            #     if sub != obj:
+            #         self.graph_state.add_edge()
+            
+        # print("pre", self.graph_state.edges)
         if prev_room_subgraph is not None:
             self.graph_state.add_edges_from(prev_room_subgraph.edges)
-        print(self.graph_state.edges)
+        print(f"final edges in graph: {self.graph_state.edges}")
 
         return
 

@@ -25,12 +25,11 @@ request_infos = textworld.EnvInfos(description=True,
 
 def parallelize(params):
     print(params)
-    generated_path, games_dir = generate_games()
-    print(games_dir)
+    generated_path = generate_games()
     # print(f"generated game with batch2 is {generated_path}")
     # trainer.generate_text_files(generated_path)
     # games = glob.glob(generated_path + "*.ulx")
-    trainer = KGDQNTrainer(params, generated_path, games_dir)
+    trainer = KGDQNTrainer(params, generated_path)
     trainer.train()
 
 
@@ -49,7 +48,8 @@ def generate_games():
     all_games_path = game_generator.game_generator(
         path=games_dir, random_map=False, question_type="location", train_data_size=4)
     all_games_path.sort()
-    print(all_games_path)
+    print(f"all games are in following paths: {all_games_path}")
+    print(f"os listed files in generated path {os.listdir(games_dir)}")
 
     # all_env_ids = register_games(
     #     gamefiles=all_games_path, request_infos=request_infos)
@@ -62,7 +62,7 @@ def generate_games():
     # print(f"current_game_id is {current_game_id}")
 
     # print(f"temporary games directory: {games_dir}")
-    return all_games_path, games_dir
+    return all_games_path
 
 
 if __name__ == "__main__":

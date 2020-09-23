@@ -37,7 +37,7 @@ request_infos = textworld.EnvInfos(description=True,
 
 class KGDQNTrainer(object):
 
-    def __init__(self, params, games, games_dir):
+    def __init__(self, params, games):
         self.num_episodes = params['num_episodes']
         self.state = StateNAction()
         self.use_cuda = True if torch.cuda.is_available() else False
@@ -52,11 +52,10 @@ class KGDQNTrainer(object):
 
         # self.env = gym.make(games)
 
-        print(f"games_dir listdir: {os.listdir(games_dir)}")
-
         self.env = textworld.start(games[0])
-        self.params = params
         self.env.compute_intermediate_reward()
+        self.params = params
+        # self.env.compute_intermediate_reward()
 
         if params['replay_buffer_type'] == 'priority':
             self.replay_buffer = GraphPriorityReplayBuffer(
@@ -78,7 +77,7 @@ class KGDQNTrainer(object):
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=params['lr'])
 
-        self.env.compute_intermediate_reward()
+        # self.env.compute_intermediate_reward()
         self.env.activate_state_tracking()
 
         self.num_frames = params['num_frames']
@@ -173,12 +172,12 @@ class KGDQNTrainer(object):
         os.system(f"python datacollector.py {games_dir} collect")
 
     def train(self):
-
         total_frames = 0
         for e_idx in range(1, self.num_episodes + 1):
             print("Episode:", e_idx)
             logging.info("Episode:" + str(e_idx))
-            # self.env.enable_extra_info("description")
+            self.env.enable_extra_info("description")
+            # self.env.compute_intermediate_reward()
             state = self.env.reset()
             self.state.step(state.description, pruned=self.params['pruned'])
             self.model.train()
@@ -206,7 +205,7 @@ class KGDQNTrainer(object):
                 # else:
                 #    reward += next_state.intermediate_reward
 
-                reward += next_state.intermediate_reward
+                # reward += next_state.intermediate_reward
                 reward = max(-1.0, min(reward, 1.0))
                 if reward != 0:
                     print(action_text, reward)
@@ -250,7 +249,7 @@ class KGDQNTrainer(object):
 
                 # """
             self.plot(e_idx, self.all_rewards,
-                      self.losses, self.completion_steps)
+                        self.losses, self.completion_steps)
             if e_idx % (int(self.num_episodes / 500)) == 0:
                 logging.info("Episode:" + str(e_idx))
                 # self.plot(frame_idx, self.all_rewards, self.losses, self.completion_steps)
@@ -268,7 +267,7 @@ class KGDQNTrainer(object):
                     }
                 }
                 torch.save(parameters, './kgdqn/models/' +
-                           self.filename + '_' + str(e_idx) + '.pt')
+                            self.filename + '_' + str(e_idx) + '.pt')
 
         parameters = {
             'model': self.model,

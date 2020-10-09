@@ -1,6 +1,7 @@
 # Interactive Language Learning by Question Answering
 --------------------------------------------------------------------------------
-Code for EMNLP 2019 paper "Interactive Language Learning by Question Answering".
+## different models lie on different branches
+
 ## UPDATED:
 Clone repo and cd into it  
 If conda not installed on your system, uncomment the first block of code in setup.sh  
@@ -36,7 +37,7 @@ python train.py ./
 
 ## Citation
 
-Please use the following bibtex entry:
+Original code authors bibtex entry:
 ```
 @article{yuan2019qait,
   title={Interactive Language Learning by Question Answering},

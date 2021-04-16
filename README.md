@@ -1,6 +1,8 @@
 # Interactive Language Learning by Question Answering
 --------------------------------------------------------------------------------
-Code for EMNLP 2019 paper "Interactive Language Learning by Question Answering".
+
+Most of the code is written by the original authors: Yuan, Xingdi and Cote, Marc-Alexandre and Fu, Jie and Lin, Zhouhan and Pal, Christopher and Bengio, Yoshua and Trischler, Adam. A part of the Third Year Project's contribution is the integration of a pre-trained DistilBERT model into the agent architecture. The changes can mostly be found in `layers.py`, `agent.py` and `model.py`. The Dockerized version of the code can be accessed through the docker tag of `heidonomm/qait-improved`.
+
 ## UPDATED:
 Clone repo and cd into it  
 If conda not installed on your system, uncomment the first block of code in setup.sh  
